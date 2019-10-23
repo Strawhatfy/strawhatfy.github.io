@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="PEP: 475Title: Retry system calls failing with EINTRVersion: $Revision$Last-Modified: $Date$Author: Charles-François Natali &amp;#x63;&amp;#102;&amp;#46;&amp;#110;&amp;#97;&amp;#x74;&amp;#x61;&amp;#x6c;&amp;#x69;&amp;#64;&amp;#103;&amp;#x6d;&amp;#x61;&amp;">
+<meta name="keywords" content="select,epoll,python,signal,kqueue,EINTR,system calls">
+<meta property="og:type" content="article">
+<meta property="og:title" content="PEP475-Retry system calls failing with EINTR">
+<meta property="og:url" content="http://yoursite.com/2015/07/14/PEP 475 - Retry system calls failing with EINTR/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="PEP: 475Title: Retry system calls failing with EINTRVersion: $Revision$Last-Modified: $Date$Author: Charles-François Natali &amp;#x63;&amp;#102;&amp;#46;&amp;#110;&amp;#97;&amp;#x74;&amp;#x61;&amp;#x6c;&amp;#x69;&amp;#64;&amp;#103;&amp;#x6d;&amp;#x61;&amp;">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.324Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="PEP475-Retry system calls failing with EINTR">
+<meta name="twitter:description" content="PEP: 475Title: Retry system calls failing with EINTRVersion: $Revision$Last-Modified: $Date$Author: Charles-François Natali &amp;#x63;&amp;#102;&amp;#46;&amp;#110;&amp;#97;&amp;#x74;&amp;#x61;&amp;#x6c;&amp;#x69;&amp;#64;&amp;#103;&amp;#x6d;&amp;#x61;&amp;">
+  <link rel="canonical" href="http://yoursite.com/2015/07/14/PEP 475 - Retry system calls failing with EINTR/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>PEP475-Retry system calls failing with EINTR | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/07/14/PEP 475 - Retry system calls failing with EINTR/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">PEP475-Retry system calls failing with EINTR
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-07-14 10:55:01" itemprop="dateCreated datePublished" datetime="2015-07-14T10:55:01+08:00">2015-07-14</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/python/" itemprop="url" rel="index"><span itemprop="name">python</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>PEP: 475<br>Title: Retry system calls failing with EINTR<br>Version: $Revision$<br>Last-Modified: $Date$<br>Author: Charles-François Natali <a href="mailto:&#x63;&#102;&#46;&#110;&#97;&#x74;&#x61;&#x6c;&#x69;&#64;&#103;&#x6d;&#x61;&#105;&#x6c;&#46;&#x63;&#x6f;&#109;" target="_blank" rel="noopener">&#x63;&#102;&#46;&#110;&#97;&#x74;&#x61;&#x6c;&#x69;&#64;&#103;&#x6d;&#x61;&#105;&#x6c;&#46;&#x63;&#x6f;&#109;</a>, Victor Stinner <a href="mailto:&#x76;&#x69;&#x63;&#x74;&#x6f;&#x72;&#x2e;&#x73;&#116;&#x69;&#110;&#110;&#101;&#x72;&#x40;&#x67;&#x6d;&#x61;&#105;&#108;&#x2e;&#x63;&#x6f;&#x6d;" target="_blank" rel="noopener">&#x76;&#x69;&#x63;&#x74;&#x6f;&#x72;&#x2e;&#x73;&#116;&#x69;&#110;&#110;&#101;&#x72;&#x40;&#x67;&#x6d;&#x61;&#105;&#108;&#x2e;&#x63;&#x6f;&#x6d;</a><br>BDFL-Delegate: Antoine Pitrou <a href="mailto:&#115;&#111;&#x6c;&#105;&#112;&#x73;&#105;&#115;&#x40;&#x70;&#x69;&#x74;&#x72;&#111;&#117;&#x2e;&#x6e;&#x65;&#116;" target="_blank" rel="noopener">&#115;&#111;&#x6c;&#105;&#112;&#x73;&#105;&#115;&#x40;&#x70;&#x69;&#x74;&#x72;&#111;&#117;&#x2e;&#x6e;&#x65;&#116;</a><br>Status: Final<br>Type: Standards Track<br>Content-Type: text/x-rst<br>Created: 29-July-2014<br>Python-Version: 3.5<br>Resolution: <a href="https://mail.python.org/pipermail/python-dev/2015-February/138018.html" target="_blank" rel="noopener">https://mail.python.org/pipermail/python-dev/2015-February/138018.html</a></p>
+<h1 id="摘要"><a href="#摘要" class="headerlink" title="摘要"></a>摘要</h1><p>标准库中提供的系统调用函数在捕获到 <code>EINTR</code> 错误时能够自动重试，以减轻程序编码的负担。</p>
+<p>所谓系统调用，我们指的是标准C函数库提供的操作 I/O 或者其他系统资源的函数。</p>
+<h1 id="基本原理"><a href="#基本原理" class="headerlink" title="基本原理"></a>基本原理</h1><h2 id="中断系统调用"><a href="#中断系统调用" class="headerlink" title="中断系统调用"></a>中断系统调用</h2><p>在 POSIX 系统中，信号是很常见的，系统调用编码的时候必须准备捕获它们。一些常见的例子：</p>
+<ul>
+<li><p>最常见的是 <code>SIGINT</code> 信号，当按下 CTRL+C 时发送该信号。 Python 在默认情况下捕获该信号后会抛出一个 <code>KeyboardInterrupt</code> 异常。</p>
+</li>
+<li><p>当使用到子进程时，子进程退出时会发送 <code>SIGCHLD</code> 信号。</p>
+</li>
+<li><p>改变终端窗口大小时会向在该终端中运行的应用程序发送 <code>SIGWINCH</code> 信号。</p>
+</li>
+<li><p>通过 CTRL+z 或者 <code>SIGWINCH</code> 命令将应用程序放到后台执行时发送 <code>SIGCONT</code> 信号。</p>
+</li>
+</ul>
+<p>编写一个安全的 C 信号处理器是困难的：因为并不是所有的函数都是 “异步信号安全的” （例如，<code>printf()</code> 和 <code>malloc()</code> 函数就不是异步信号安全的），同时要处理好信号中断后的重入也是很麻烦的。然后幸运的是，当进程在执行系统调用的过程中被信号中断而失败的时会返回 <code>EINTR</code> 错误以便于程序处理，这样就不必强制要求函数是信号安全的。</p>
+<p>这是一种依赖于系统的行为：在某些系统中，设置了 <code>SA_RESTART</code> 标识后，一些系统调用在捕获到 <code>EINTR</code> 错误后会自动重试。尽管如此，当在 Python 中调用 <code>signal.signal()</code> 函数设置信号处理器后会清除 <code>SA_RESTART</code> 标识：这样一来，在 Python 中所有的系统调用都可能会被信号中断而导致失败。</p>
+<p>因为接收到一个信号并不是发生异常，所以健壮的 POSIX 编程要求必须能够处理 <code>EINTR</code> 错误（在大多情况下，也就意味着将一个希望操作成功的系统调用函数包装在一个循环中）。如果没有 python 提供的原生支持，应用程序编码就会更繁琐（由于python提供了支持，所以我们不需要专门去处理 <code>EINTR</code> 错误，这样可以使 python 代码更简洁。）。</p>
+<h2 id="Python-3-4-中的情况"><a href="#Python-3-4-中的情况" class="headerlink" title="Python 3.4 中的情况"></a>Python 3.4 中的情况</h2><p>在 Python 3.4 中，捕获 <code>InterruptedError</code> 异常（专门用于包装 <code>EINTR</code> 错误的异常类型）的代码被复制到各处系统调用处。但实际上也只有一小部分模块捕获了该异常，要修复这个问题让所有的 Python 模块都处理该异常需要花费好几年的时间。下面是一段捕获 <code>InterruptedError</code> 异常并自动重试  <code>file.read()</code> 的代码示例：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        data = file.read(size)</span><br><span class="line">        <span class="keyword">break</span></span><br><span class="line">    <span class="keyword">except</span> InterruptedError:</span><br><span class="line">        <span class="keyword">continue</span></span><br></pre></td></tr></table></figure>
+<p>Python 标准库中已经实现内部捕获 <code>InterruptedError</code> 异常的模块列表：</p>
+<ul>
+<li><code>asyncio</code></li>
+<li><code>asyncore</code></li>
+<li><code>io</code>, <code>_pyio</code></li>
+<li><code>multiprocessing</code></li>
+<li><code>selectors</code></li>
+<li><code>socket</code></li>
+<li><code>socketserver</code></li>
+<li><code>subprocess</code></li>
+</ul>
+<p>其他编程语言比如 Perl, Java 和 Go 中系统调用时捕获 <code>EINTR</code> 错误并自动重试已经在语言底层实现了，所以不会影响到库和应用程序。</p>
+<a id="more"></a>
+<h2 id="Use-Case-1-Don’t-Bother-With-Signals"><a href="#Use-Case-1-Don’t-Bother-With-Signals" class="headerlink" title="Use Case 1: Don’t Bother With Signals"></a>Use Case 1: Don’t Bother With Signals</h2><p>在大多数场景中，你可能并不想被信号中断，也不希望捕获到 <code>InterruptedError</code> 异常。举个例子，你真的希望为了一个 “Hello World” 的示例代码而写上一段如此复杂的代码吗？</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        print(<span class="string">"Hello World"</span>)</span><br><span class="line">        <span class="keyword">break</span></span><br><span class="line">    <span class="keyword">except</span> InterruptedError:</span><br><span class="line">        <span class="keyword">continue</span></span><br></pre></td></tr></table></figure>
+<p><code>InterruptedError</code> 异常可能发生在任何一个你不期望发生的地方。举个例子，<code>os.close()</code> 和 <code>FileIO.close()</code> 调用都可能抛出 <code>InterruptedError</code> 。参见这篇文章：<a href="http://alobbs.com/post/54503240599/close-and-eintr" target="_blank" rel="noopener">close() and EINTR</a>。</p>
+<p>下面有关 <code>Python issues related to EINTR</code>  的章节将会给出一些由 <code>EINTR</code> 导致 bug 的例子。</p>
+<p>在这种使用场景下，我们希望 Python 能够自行隐藏 <code>InterruptedError</code>  异常并自动重试系统调用。</p>
+<h2 id="Use-Case-2-Be-notified-of-signals-as-soon-as-possible"><a href="#Use-Case-2-Be-notified-of-signals-as-soon-as-possible" class="headerlink" title="Use Case 2: Be notified of signals as soon as possible"></a>Use Case 2: Be notified of signals as soon as possible</h2><p>有时候，我们希望能够立即捕获并处理某些信号。举个例子，你可能希望当在键盘按下快捷键 <code>CTRL+c</code> 时就立即退出程序。</p>
+<p>另外，对于某些信号我们应用程序既不感兴趣也不希望被其打断。这里有两种方式来处理我们感兴趣的信号：</p>
+<ul>
+<li><p>设置一个自定义的信号处理器，这个信号处理器收到信号后抛出特定的异常类型，比如说为 <code>SIGINT</code> 信号抛出 <code>KeyboardInterrupt</code> 类型的异常。</p>
+</li>
+<li><p>结合 Python 的信号唤醒文件描述符机制使用  <code>select()</code> 一类的 I/O 复用函数：详见函数 <code>signal.set_wakeup_fd()</code>。</p>
+</li>
+</ul>
+<p>我们期望在这种情况下， Python 的信号处理器能够及时地接收处理信号，当信号处理器抛出异常时系统调用要么失败要么重试。</p>
+<h1 id="建议"><a href="#建议" class="headerlink" title="建议"></a>建议</h1><p>PEP建议在底层实现捕获 EINTR 错误码并重试，也就是说，该功能应该被包装在标准库中（而不是在上层库和应用程序中）。</p>
+<p>特别需要指出的是，在 Python 中当一个系统调用被 <code>EINTR</code> 中断时会调用相应的信号处理器（内部调用 PyErr_CheckSignals()函数）。如果该信号处理器抛出一个异常，那么系统调用失败并向上层传递异常。</p>
+<p>否则，Python将自动重试系统调用。如果该系统调用设置了超时时间，超时时间将重新计算。</p>
+<h2 id="需要修改的函数"><a href="#需要修改的函数" class="headerlink" title="需要修改的函数"></a>需要修改的函数</h2><p>下面列举了一些需要修改以符合上述 PEP 的标准库函数：</p>
+<ul>
+<li><p><code>open()</code>, <code>os.open()</code>, <code>io.open()</code></p>
+</li>
+<li><p>functions of the <code>faulthandler</code> module</p>
+</li>
+<li><p><code>os</code> functions:</p>
+<ul>
+<li><code>os.fchdir()</code></li>
+<li><code>os.fchmod()</code></li>
+<li><code>os.fchown()</code></li>
+<li><code>os.fdatasync()</code></li>
+<li><code>os.fstat()</code></li>
+<li><code>os.fstatvfs()</code></li>
+<li><code>os.fsync()</code></li>
+<li><code>os.ftruncate()</code></li>
+<li><code>os.mkfifo()</code></li>
+<li><code>os.mknod()</code></li>
+<li><code>os.posix_fadvise()</code></li>
+<li><code>os.posix_fallocate()</code></li>
+<li><code>os.pread()</code></li>
+<li><code>os.pwrite()</code></li>
+<li><code>os.read()</code></li>
+<li><code>os.readv()</code></li>
+<li><code>os.sendfile()</code></li>
+<li><code>os.wait3()</code></li>
+<li><code>os.wait4()</code></li>
+<li><code>os.wait()</code></li>
+<li><code>os.waitid()</code></li>
+<li><code>os.waitpid()</code></li>
+<li><code>os.write()</code></li>
+<li><code>os.writev()</code></li>
+<li>special cases: <code>os.close()</code> and <code>os.dup2()</code> now ignore <code>EINTR</code> error,<br>the syscall is not retried</li>
+</ul>
+</li>
+<li><p><code>select.select()</code>, <code>select.poll.poll()</code>, <code>select.epoll.poll()</code>,<br><code>select.kqueue.control()</code>, <code>select.devpoll.poll()</code></p>
+</li>
+<li><p><code>socket.socket()</code> methods:</p>
+<ul>
+<li><code>accept()</code></li>
+<li><code>connect()</code> (except for non-blocking sockets)</li>
+<li><code>recv()</code></li>
+<li><code>recvfrom()</code></li>
+<li><code>recvmsg()</code></li>
+<li><code>send()</code></li>
+<li><code>sendall()</code></li>
+<li><code>sendmsg()</code></li>
+<li><code>sendto()</code></li>
+</ul>
+</li>
+<li><p><code>signal.sigtimedwait()</code>, <code>signal.sigwaitinfo()</code></p>
+</li>
+<li><p><code>time.sleep()</code></p>
+</li>
+</ul>
+<p>（注意： <code>selector</code> 模块目前虽然捕获到 <code>InterruptedError</code> 异常时会自动重试，但是它不会重新计算超时时间。）</p>
+<p><code>os.close</code>, <code>close()</code> 以及 <code>os.dup2()</code> 方法例外: 它们会忽略掉 <code>EINTR</code> 错误而不会重试。原因比较复杂涉及到 Linux 底层，发生 EINTR 错误返回后相关的文件描述符可能真的已经被关闭了（注：所以就不用重试关闭）。参考下面的文章:</p>
+<ul>
+<li><a href="http://lwn.net/Articles/576478/" target="_blank" rel="noopener"><code>Returning EINTR from close()</code></a></li>
+<li><a href="http://linux.derkeiler.com/Mailing-Lists/Kernel/2005-09/3000.html" target="_blank" rel="noopener"><code>(LKML) Re: [patch 7/7] uml: retry host close() on EINTR</code></a></li>
+<li><a href="http://alobbs.com/post/54503240599/close-and-eintr" target="_blank" rel="noopener"><code>close() and EINTR</code></a></li>
+</ul>
+<p>对于非阻塞套接字（non-blocking sockets） <code>socket.socket.connect()</code> 方法被信号（失败并返回 <code>EINTR</code> 错误）中断后不会自动重试。因为连接操作已经异步在后台运行（注：后台已经异步向对方发出连接请求，只需等待对方应答，重试的话会导致重复连接），这时调用者需要自己负责等待套接字变得 “可读” (例如使用 <code>select.select()</code> )，然后调用 <code>socket.socket.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR)</code> 检查连接是否成功（<code>getsockopt()</code> 返回 <code>0</code> 表示成功）。</p>
+<h2 id="InterruptedError-异常处理"><a href="#InterruptedError-异常处理" class="headerlink" title="InterruptedError 异常处理"></a>InterruptedError 异常处理</h2><p>由于系统调用被信号中断后将会自动重试，所以 <code>InterruptedError</code> 异常将不会被抛出，那么上面  <code>Python3.4中的情况</code> 章节所写的捕获 <code>InterruptedError</code>  的代码便可以移除，这样可简化标准库。</p>
+<h1 id="向后兼容"><a href="#向后兼容" class="headerlink" title="向后兼容"></a>向后兼容</h1><p>试想这样一类应用程序，当其系统调用被 <code>InterruptedError</code> 中断后会被挂起。PEP的作者没有考虑这类应用程序，因为这类程序引入了另外一些问题，比如竞态条件（系统调用执行前被信号中断将可能导致死锁）。此外，这样的代码也没有可移植性。</p>
+<p>无论如何，这些应用程序都必须被修复以处理不同的信号，兼容不同的平台和 Python 版本。一个可行的方法是设置一个信号处理器抛出一个明确定义的异常或者使用信号唤醒文件描述符。</p>
+<p>应用程序使用事件循环驱动时，推荐使用 <code>signal.set_wakeup_fd()</code>  来处理信号中断。 Python 底层的信号处理器将会把信号 number 写入唤醒文件描述符，事件循环被唤醒后便可以根据信号 number 处理信号。这样一来，事件循环便能不受约束地处理各种信号（比如，事件循环可以被任何线程唤醒而不仅仅局限于主线程）。</p>
+<h1 id="附录"><a href="#附录" class="headerlink" title="附录"></a>附录</h1><h2 id="唤醒文件描述符"><a href="#唤醒文件描述符" class="headerlink" title="唤醒文件描述符"></a>唤醒文件描述符</h2><p>从 Python 3.3 开始 <code>signal.set_wakeup_fd()</code> 会把信号 number 写入唤醒文件描述符，而之前是写入一个null字节（’\0’）。这样一来 python3.3 之后我们就可以通过唤醒文件描述符区分不同的信号。</p>
+<p>Linux 下有一个叫 <code>signalfd()</code> 的系统调用函数可以提供关于信号的更多信息。比如，通过该函数可以获得发送该信号的 pid 和 uid 。但是很遗憾在 Python 中该函数不可用（详见 <a href="http://bugs.python.org/issue12304" target="_blank" rel="noopener"><code>issue 12304</code></a>）</p>
+<p>在 Unix 上， <code>asyncio</code> 模块使用唤醒文件描述符来唤醒其事件循环。</p>
+<h2 id="多线程化"><a href="#多线程化" class="headerlink" title="多线程化"></a>多线程化</h2><p>C 语言中信号处理器可以被任何线程调用，但是在 Python 中只能被主线程调用。</p>
+<p>Python 的 C API 提供了 <code>PyErr_SetInterrupt()</code> 函数来调用 SIGINT 的信号处理器就是为了中断Python的主线程。</p>
+<h2 id="Windows-中的信号"><a href="#Windows-中的信号" class="headerlink" title="Windows 中的信号"></a>Windows 中的信号</h2><h2 id="控制事件（Control-events）"><a href="#控制事件（Control-events）" class="headerlink" title="控制事件（Control events）"></a>控制事件（Control events）</h2><p>Windows 中使用 “control events”:</p>
+<ul>
+<li><code>CTRL_BREAK_EVENT</code>: Break (<code>SIGBREAK</code>)</li>
+<li><code>CTRL_CLOSE_EVENT</code>: Close event</li>
+<li><code>CTRL_C_EVENT</code>: CTRL+C (<code>SIGINT</code>)</li>
+<li><code>CTRL_LOGOFF_EVENT</code>: Logoff</li>
+<li><code>CTRL_SHUTDOWN_EVENT</code>: Shutdown</li>
+</ul>
+<p><a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms686016%28v=vs.85%29.aspx" target="_blank" rel="noopener"><code>SetConsoleCtrlHandler() 函数</code></a><br>可以用来安装一个 控制事件 处理器。</p>
+<p>通过 <a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms683155%28v=vs.85%29.aspx" target="_blank" rel="noopener"><code>GenerateConsoleCtrlEvent() 函数</code></a>可以向一个进程发送<code>CTRL_C_EVENT</code> 和 <code>CTRL_BREAK_EVENT</code> 事件。该函数功能在 Python 中是通过 <code>os.kill()</code> 函数来提供。</p>
+<h2 id="信号"><a href="#信号" class="headerlink" title="信号"></a>信号</h2><p>Windows 中支持的信号列表:</p>
+<ul>
+<li><code>SIGABRT</code></li>
+<li><code>SIGBREAK</code> (<code>CTRL_BREAK_EVENT</code>): signal only available on Windows</li>
+<li><code>SIGFPE</code></li>
+<li><code>SIGILL</code></li>
+<li><code>SIGINT</code> (<code>CTRL_C_EVENT</code>)</li>
+<li><code>SIGSEGV</code></li>
+<li><code>SIGTERM</code></li>
+</ul>
+<h2 id="SIGINT"><a href="#SIGINT" class="headerlink" title="SIGINT"></a>SIGINT</h2><p>在 Windows 中对于 <code>SIGINT</code> 信号，Python 默认的信号处理器会设置一个 Windows 事件对象： <code>sigint_event</code> 。</p>
+<p><code>time.sleep()</code> 函数是用 <code>WaitForSingleObjectEx()</code> 来实现的， <code>time.sleep()</code> 函数通过设置一个等待  <code>sigint_event</code> 对象的超时时间来达到效果。所以（在Windows）中 Sleep 是可以被信号中断的。</p>
+<p><code>_winapi.WaitForMultipleObjects()</code> 也是自动添加 <code>sigint_event</code> 到监视处理列表，因此也可以被信号中断。</p>
+<p>当 <code>fgets()</code> 失败时 <code>PyOS_StdioReadline()</code> 也是使用 <code>sigint_event</code> 来检查是否按下 CTRL+c 或者 CTRL+z 。</p>
+<h2 id="Links"><a href="#Links" class="headerlink" title="Links"></a>Links</h2><h2 id="Misc"><a href="#Misc" class="headerlink" title="Misc"></a>Misc</h2><ul>
+<li><a href="http://www.gnu.org/software/libc/manual/html_node/Interrupted-Primitives.html" target="_blank" rel="noopener"><code>glibc manual: Primitives Interrupted by Signals</code></a></li>
+<li><a href="https://rt.perl.org/Public/Bug/Display.html?id=119097" target="_blank" rel="noopener"><code>Bug #119097 for perl5: print returning EINTR in 5.14</code></a></li>
+</ul>
+<h2 id="Python-issues-related-to-EINTR"><a href="#Python-issues-related-to-EINTR" class="headerlink" title="Python issues related to EINTR"></a>Python issues related to EINTR</h2><p>The main issue is: <a href="http://bugs.python.org/issue18885" target="_blank" rel="noopener"><code>handle EINTR in the stdlib</code></a></p>
+<p>Open issues:</p>
+<ul>
+<li><a href="http://bugs.python.org/issue22018" target="_blank" rel="noopener"><code>Add a new signal.set_wakeup_socket() function</code></a></li>
+<li><a href="http://bugs.python.org/issue22042" target="_blank" rel="noopener"><code>signal.set_wakeup_fd(fd): set the fd to non-blocking mode</code></a></li>
+<li><a href="http://bugs.python.org/issue22043" target="_blank" rel="noopener"><code>Use a monotonic clock to compute timeouts</code></a></li>
+<li><a href="http://bugs.python.org/issue22007" target="_blank" rel="noopener"><code>sys.stdout.write on OS X is not EINTR safe</code></a></li>
+<li><a href="http://bugs.python.org/issue21772" target="_blank" rel="noopener"><code>platform.uname() not EINTR safe</code></a></li>
+<li><a href="http://bugs.python.org/issue11266" target="_blank" rel="noopener"><code>asyncore does not handle EINTR in recv, send, connect, accept</code></a></li>
+<li><a href="http://bugs.python.org/issue20611" target="_blank" rel="noopener"><code>socket.create_connection() doesn&#39;t handle EINTR properly</code></a></li>
+</ul>
+<p>Closed issues:</p>
+<ul>
+<li><a href="http://bugs.python.org/issue9867" target="_blank" rel="noopener"><code>Interrupted system calls are not retried</code></a></li>
+<li><a href="http://bugs.python.org/issue1049450" target="_blank" rel="noopener"><code>Solaris: EINTR exception in select/socket calls in telnetlib</code></a></li>
+<li><a href="http://bugs.python.org/issue12493" target="_blank" rel="noopener"><code>subprocess: Popen.communicate() doesn&#39;t handle EINTR in some cases</code></a></li>
+<li><a href="http://bugs.python.org/issue12338" target="_blank" rel="noopener"><code>multiprocessing.util._eintr_retry doen&#39;t recalculate timeouts</code></a></li>
+<li><a href="http://bugs.python.org/issue12268" target="_blank" rel="noopener"><code>file readline, readlines &amp; readall methods can lose data on EINTR</code></a></li>
+<li><a href="http://bugs.python.org/issue17097" target="_blank" rel="noopener"><code>multiprocessing BaseManager serve_client() does not check EINTR on recv</code></a></li>
+<li><a href="http://bugs.python.org/issue19849" target="_blank" rel="noopener"><code>selectors behaviour on EINTR undocumented</code></a></li>
+<li><a href="http://bugs.python.org/issue19850" target="_blank" rel="noopener"><code>asyncio: limit EINTR occurrences with SA_RESTART</code></a></li>
+<li><a href="http://bugs.python.org/issue21602" target="_blank" rel="noopener"><code>smtplib.py socket.create_connection() also doesn&#39;t handle EINTR properly</code></a></li>
+<li><a href="http://bugs.python.org/issue11650" target="_blank" rel="noopener"><code>Faulty RESTART/EINTR handling in Parser/myreadline.c</code></a></li>
+<li><a href="http://bugs.python.org/issue3771" target="_blank" rel="noopener"><code>test_httpservers intermittent failure, test_post and EINTR</code></a></li>
+<li><a href="http://bugs.python.org/issue686667" target="_blank" rel="noopener"><code>os.spawnv(P_WAIT, ...) on Linux doesn&#39;t handle EINTR</code></a></li>
+<li><a href="http://bugs.python.org/issue517554" target="_blank" rel="noopener"><code>asyncore fails when EINTR happens in pol</code></a></li>
+<li><a href="http://bugs.python.org/issue10956" target="_blank" rel="noopener"><code>file.write and file.read don&#39;t handle EINTR</code></a></li>
+<li><a href="http://bugs.python.org/issue1628205" target="_blank" rel="noopener"><code>socket.readline() interface doesn&#39;t handle EINTR properly</code></a></li>
+<li><a href="http://bugs.python.org/issue1068268" target="_blank" rel="noopener"><code>subprocess is not EINTR-safe</code></a></li>
+<li><a href="http://bugs.python.org/issue7978" target="_blank" rel="noopener"><code>SocketServer doesn&#39;t handle syscall interruption</code></a></li>
+<li><a href="http://bugs.python.org/issue17367" target="_blank" rel="noopener"><code>subprocess deadlock when read() is interrupted</code></a></li>
+<li><a href="http://bugs.python.org/issue12462" target="_blank" rel="noopener"><code>time.sleep(1): call PyErr_CheckSignals() if the sleep was interrupted</code></a></li>
+<li><a href="http://bugs.python.org/issue8354" target="_blank" rel="noopener"><code>siginterrupt with flag=False is reset when signal received</code></a></li>
+<li><a href="http://bugs.python.org/issue1089358" target="_blank" rel="noopener"><code>need siginterrupt()  on Linux - impossible to do timeouts</code></a></li>
+<li><a href="http://bugs.python.org/issue581232" target="_blank" rel="noopener"><code>[Windows] Can not interrupt time.sleep()</code></a></li>
+</ul>
+<h2 id="Python-issues-related-to-signals"><a href="#Python-issues-related-to-signals" class="headerlink" title="Python issues related to signals"></a>Python issues related to signals</h2><p>Open issues:</p>
+<ul>
+<li><a href="http://bugs.python.org/issue17182" target="_blank" rel="noopener"><code>signal.default_int_handler should set signal number on the raised
+exception</code></a></li>
+<li><a href="http://bugs.python.org/issue12304" target="_blank" rel="noopener"><code>expose signalfd(2) in the signal module</code></a></li>
+<li><a href="http://bugs.python.org/issue14484" target="_blank" rel="noopener"><code>missing return in win32_kill?</code></a></li>
+<li><a href="http://bugs.python.org/issue3180" target="_blank" rel="noopener"><code>Interrupts are lost during readline PyOS_InputHook processing</code></a></li>
+<li><a href="http://bugs.python.org/issue1687125" target="_blank" rel="noopener"><code>cannot catch KeyboardInterrupt when using curses getkey()</code></a></li>
+<li><a href="http://bugs.python.org/issue16151" target="_blank" rel="noopener"><code>Deferred KeyboardInterrupt in interactive mode</code></a></li>
+</ul>
+<p>Closed issues:</p>
+<ul>
+<li><a href="http://bugs.python.org/issue753733" target="_blank" rel="noopener"><code>sys.interrupt_main()</code></a></li>
+</ul>
+<h1 id="Implementation"><a href="#Implementation" class="headerlink" title="Implementation"></a>Implementation</h1><p>The implementation is tracked in <a href="http://bugs.python.org/issue23285" target="_blank" rel="noopener"><code>issue 23285</code></a>. It was committed on<br>February 07, 2015.</p>
+<h1 id="Copyright"><a href="#Copyright" class="headerlink" title="Copyright"></a>Copyright</h1><p>This document has been placed in the public domain.</p>
+<p>..<br>   Local Variables:<br>   mode: indented-text<br>   indent-tabs-mode: nil<br>   sentence-end-double-space: t<br>   fill-column: 70<br>   coding: utf-8</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/select/" rel="tag"># select</a>
+            
+              <a href="/tags/epoll/" rel="tag"># epoll</a>
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+              <a href="/tags/signal/" rel="tag"># signal</a>
+            
+              <a href="/tags/kqueue/" rel="tag"># kqueue</a>
+            
+              <a href="/tags/EINTR/" rel="tag"># EINTR</a>
+            
+              <a href="/tags/system-calls/" rel="tag"># system calls</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/07/09/Distributed locks with Redis/" rel="next" title="使用 Redis 实现分布式锁">
+                  <i class="fa fa-chevron-left"></i> 使用 Redis 实现分布式锁
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/07/15/signal — Set handlers for asynchronous events/" rel="prev" title="signal — Set handlers for asynchronous events">
+                  signal — Set handlers for asynchronous events <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#摘要"><span class="nav-number">1.</span> <span class="nav-text">摘要</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#基本原理"><span class="nav-number">2.</span> <span class="nav-text">基本原理</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#中断系统调用"><span class="nav-number">2.1.</span> <span class="nav-text">中断系统调用</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Python-3-4-中的情况"><span class="nav-number">2.2.</span> <span class="nav-text">Python 3.4 中的情况</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Use-Case-1-Don’t-Bother-With-Signals"><span class="nav-number">2.3.</span> <span class="nav-text">Use Case 1: Don’t Bother With Signals</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Use-Case-2-Be-notified-of-signals-as-soon-as-possible"><span class="nav-number">2.4.</span> <span class="nav-text">Use Case 2: Be notified of signals as soon as possible</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#建议"><span class="nav-number">3.</span> <span class="nav-text">建议</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#需要修改的函数"><span class="nav-number">3.1.</span> <span class="nav-text">需要修改的函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#InterruptedError-异常处理"><span class="nav-number">3.2.</span> <span class="nav-text">InterruptedError 异常处理</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#向后兼容"><span class="nav-number">4.</span> <span class="nav-text">向后兼容</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#附录"><span class="nav-number">5.</span> <span class="nav-text">附录</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#唤醒文件描述符"><span class="nav-number">5.1.</span> <span class="nav-text">唤醒文件描述符</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#多线程化"><span class="nav-number">5.2.</span> <span class="nav-text">多线程化</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Windows-中的信号"><span class="nav-number">5.3.</span> <span class="nav-text">Windows 中的信号</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#控制事件（Control-events）"><span class="nav-number">5.4.</span> <span class="nav-text">控制事件（Control events）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#信号"><span class="nav-number">5.5.</span> <span class="nav-text">信号</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SIGINT"><span class="nav-number">5.6.</span> <span class="nav-text">SIGINT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Links"><span class="nav-number">5.7.</span> <span class="nav-text">Links</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Misc"><span class="nav-number">5.8.</span> <span class="nav-text">Misc</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Python-issues-related-to-EINTR"><span class="nav-number">5.9.</span> <span class="nav-text">Python issues related to EINTR</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Python-issues-related-to-signals"><span class="nav-number">5.10.</span> <span class="nav-text">Python issues related to signals</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Implementation"><span class="nav-number">6.</span> <span class="nav-text">Implementation</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Copyright"><span class="nav-number">7.</span> <span class="nav-text">Copyright</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

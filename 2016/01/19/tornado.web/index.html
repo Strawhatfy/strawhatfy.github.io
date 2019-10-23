@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言在前面 Tornado 的分析文章中已经详细介绍了 HttpServer 接收处理客户端 Http 连接请求，并将请求委托给请求回调（即 HttpServer.request_callback 字段，由 HttpServer 的构造参数来完成初始化）处理的流程。基于 HttpServer 的支持，tornado.web 模块为我们提供了一个简单的 Web 框架，该框架支持路由请求到对应的（自定">
+<meta name="keywords" content="HTTPServer,HTTPServerConnectionDelegate,HTTPMessageDelegate,HTTPConnection,HTTP1ServerConnection,HTTP1Connection,Application,RequestHandler">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.web 模块解析">
+<meta property="og:url" content="http://yoursite.com/2016/01/19/tornado.web/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言在前面 Tornado 的分析文章中已经详细介绍了 HttpServer 接收处理客户端 Http 连接请求，并将请求委托给请求回调（即 HttpServer.request_callback 字段，由 HttpServer 的构造参数来完成初始化）处理的流程。基于 HttpServer 的支持，tornado.web 模块为我们提供了一个简单的 Web 框架，该框架支持路由请求到对应的（自定">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2016/01/19/tornado.web/tornado.httpserver.jpg">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.346Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.web 模块解析">
+<meta name="twitter:description" content="引言在前面 Tornado 的分析文章中已经详细介绍了 HttpServer 接收处理客户端 Http 连接请求，并将请求委托给请求回调（即 HttpServer.request_callback 字段，由 HttpServer 的构造参数来完成初始化）处理的流程。基于 HttpServer 的支持，tornado.web 模块为我们提供了一个简单的 Web 框架，该框架支持路由请求到对应的（自定">
+<meta name="twitter:image" content="http://yoursite.com/2016/01/19/tornado.web/tornado.httpserver.jpg">
+  <link rel="canonical" href="http://yoursite.com/2016/01/19/tornado.web/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.web 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/01/19/tornado.web/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.web 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2016-01-19 17:25:01" itemprop="dateCreated datePublished" datetime="2016-01-19T17:25:01+08:00">2016-01-19</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p>在前面 Tornado 的分析文章中已经详细介绍了 HttpServer 接收处理客户端 Http 连接请求，并将请求委托给请求回调（即 HttpServer.request_callback 字段，由 HttpServer 的构造参数来完成初始化）处理的流程。基于 HttpServer 的支持，tornado.web 模块为我们提供了一个简单的 Web 框架，该框架支持路由请求到对应的（自定义/默认）请求处理器（RequestHandler）并自带一个简易的 HTML 模板引擎。在分析 tornado.web 模块的设计之前，先通过一张图来回顾一下 HttpServer 的处理流程，看看 web.tornado 提供的框架是如何获得支持的。</p>
+<img src="/2016/01/19/tornado.web/tornado.httpserver.jpg">
+<p>由上图可知：</p>
+<ol>
+<li><p><code>httpsever.HttpServer</code> 继承自 <code>tcpserver.TCPServer</code> 并覆写了 <code>handle_stream(stream, address)</code> 方法。</p>
+</li>
+<li><p><code>httpsever.HttpServer.handle_stream(stream, address)</code> 方法中将请求相关的 IOStream、地址和协议描述（http/https）保证成 <code>httpsever._HTTPRequestContext</code> 实例以构建 <code>http1connection.HTTP1ServerConnection</code> 实例，并调用 <code>Http1ServerConnection.start_serving</code> 方法启动请求处理。</p>
+</li>
+<li><p><code>http1connection.HTTP1ServerConnection</code> 是一个支持 Http/1.x 的服务端抽象连接类型，也就是说能支持 Http/1.1 的长连接。在该连接实例服务周期中（实现在其 <code>_server_request_loop</code> 方法的 while 循环），其内部对于每一次 Http 请求会生成一个 <code>http1connection.HTTP1Connection</code> 实例。</p>
+<ul>
+<li><p><code>http1connection.Http1ServerConnection.start_serving(delegate:httputil.HTTPServerConnectionDelegate)</code> 方法要求接收一个 <code>httputil.HTTPServerConnectionDelegate</code> 实例，该实例的 <code>start_request(server_conn, request_conn:HTTP1Connection)</code> 方法返回一个 <code>httputil.HTTPMessageDelegate</code> 实例，该实例将与 <code>http1connection.HTTP1Connection</code> 实例配合处理 Http 请求的各个阶段。</p>
+</li>
+<li><p><code>http1connection.HTTP1Connection</code> 是 <code>httputil.HTTPConnection</code> 的 Http/1.x 子类实现，是每次 Http 连接请求的抽象，提供了读取请求和数据和发送响应数据的接口。<code>http1connection.HTTP1ServerConnection</code> 抽象了一个服务端的物理连接，<code>http1connection.HTTP1Connection</code> 则抽象了每次 Http 请求的连接，这样一来前者就可以基于同一个物理连接处理多个 Http 请求，也就是支持了 Http 协议要求的长连接。</p>
+</li>
+</ul>
+</li>
+<li><p><code>httpsever.HttpServer</code> 同时继承自 <code>httputil.HTTPServerConnectionDelegate</code>，所以它能作为 <code>http1connection.HTTP1ServerConnection.start_serving()</code> 方法的参数为其提供实际的请求处理。对请求的处理工作 <code>httpsever.HttpServer</code> 实际上是委托给其内部的 <code>request_callback</code> 字段来进行，该字段在 <code>httpsever.HttpServer</code> 构造时初始化。在 Tornado v4.0 之前的版本中，<code>request_callback</code> 是一个以 <code>httputil.HTTPServerRequest</code> 作为参数的回调对象，v4.0 之后引入 <code>httputil.HTTPMessageDelegate</code> 类型，随之 <code>request_callback</code> 改为支持 <code>httputil.HTTPMessageDelegate</code> 实例。为了向后兼容，<code>httpsever.HttpServer.start_request</code> 方法返回一个 <code>httpserver._ServerRequestAdapter</code> 类型实例。<code>httpserver._ServerRequestAdapter</code> 是一个对象适配器，它负责将之前的回调对象（适配者）适配到 <code>httputil.HTTPMessageDelegate</code> 类型。</p>
+</li>
+<li><p><code>web.Application</code> 继承自 <code>httputil.HTTPServerConnectionDelegate</code>，可作为请求连接处理回调对象传递给 <code>httpsever.HttpServer</code>， 作为其 <code>request_callback</code> 字段负责处理请求。</p>
+</li>
+</ol>
+<p>到这里，<code>httpsever.HttpServer</code> 的整个处理过程基本回顾了一遍，后面处理将转到 <code>web.Application</code> ，开始进入 Tornado Web Framework 的处理流程。</p>
+<a id="more"></a>
+<h3 id="Tornado-Web-Framwork"><a href="#Tornado-Web-Framwork" class="headerlink" title="Tornado Web Framwork"></a>Tornado Web Framwork</h3><p><code>tornado.web</code> 中实现的 Web 框架总的来看主要由 3 个部分（类）组成：</p>
+<ol>
+<li><p><code>Application</code> 类型继承自 <code>httputil.HTTPServerConnectionDelegate</code>，其实例可直接传递给 HttpServer 来处理客户端连接；</p>
+</li>
+<li><p><code>RequestHandler</code> 类型是请求处理的基类型，其子类实例负责处理具体的请求，也就是 Tornado Web 框架分发请求的目标对象；</p>
+</li>
+<li><p><code>_RequestDispatcher</code> 是一个模块内部类，继承自 <code>httputil.HTTPMessageDelegate</code> 。它把映射请求到具体 <code>RequestHandler</code> 实例的逻辑从 <code>Application</code> 分离出来，简化 <code>Application</code> 的实现。</p>
+</li>
+</ol>
+<p>也就是说实现上，<code>Application</code>  是一系列 <code>RequestHandler</code> 子类实例的集合，具体请求将根据主机和资源路径进行映射。映射关系则由 <code>URLSpec</code> 类型实例来描述，映射动作的执行（或者说请求分发）则由 <code>_RequestDispatcher</code> 来完成。</p>
+<h4 id="URLSpec"><a href="#URLSpec" class="headerlink" title="URLSpec"></a>URLSpec</h4><p><code>URLSpec</code> 用于描述请求 URLs 与 handlers 的映射关系，别名是 <code>url</code>，即通过 <code>web.url</code> 也能引用该类型。<code>URLSpec</code> 的实现从构造方法就可窥见，与 URLs 的映射是通过正则表达式匹配来完成的。下面是其构造方法的签名：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, pattern, handler, kwargs=None, name=None)</span>:</span></span><br><span class="line">	<span class="keyword">pass</span></span><br></pre></td></tr></table></figure></p>
+<ol>
+<li><p><code>pattern</code> 是用来匹配 URL 的正则表达式字符串。通过匹配得到的分组将作为 handler 实例 get/post 等等方法的参数调用；</p>
+</li>
+<li><p><code>handler</code> 是将被实例化后用来处理器请求的 <code>RequestHandler</code> 子类，可以是一个 “module.ClassName” 格式的字符串；</p>
+</li>
+<li><p><code>kwargs</code> 是 <code>handler</code> 实例化是传递给构造方法的参数；</p>
+</li>
+<li><p><code>name</code> 是为给 <code>Application.reverse_url</code> 使用给 <code>handler</code> 取的名字。<code>URLSpec</code> 提供方法 <code>reverse</code> 来配合 Application 工作，但不支持复杂的 <code>pattern</code> ，实现代码不复杂，感兴趣的可以看看。</p>
+</li>
+</ol>
+<h4 id="RequestHandler"><a href="#RequestHandler" class="headerlink" title="RequestHandler"></a>RequestHandler</h4><p><code>RequestHandler</code> 是负责请求的处理（响应）的基类，是 Tornado 简单 Web 框架的重要组成部分。一般我们都会从它派生子类型来处理器具体的请求。<code>RequestHandler</code> 在 Tornado Web Framework 中的位置，有点类似Java Web 中的 Servlet 或者 ASP.NET 中的 HTTPHandler。</p>
+<p><code>RequestHandler</code> 中封装的功能细节比较多，基本上包含了响应的方方面面，这里我们主要关注其处理流程，具体的功能细节后续再分析。<code>RequestHandler</code> 请求处理流程的入口是方法 <code>_execute</code>，该方法会被 <code>_RequestDispatcher</code> 在 <code>execute</code> 方法中调用。<code>_execute</code> 方法代码不多，清晰表达了 <code>RequestHandler</code> 的处理流程。代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@gen.coroutine</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_execute</span><span class="params">(self, transforms, *args, **kwargs)</span>:</span></span><br><span class="line">    <span class="string">"""Executes this request with the given output transforms."""</span></span><br><span class="line">    self._transforms = transforms</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="keyword">if</span> self.request.method <span class="keyword">not</span> <span class="keyword">in</span> self.SUPPORTED_METHODS:</span><br><span class="line">            <span class="keyword">raise</span> HTTPError(<span class="number">405</span>)</span><br><span class="line">        self.path_args = [self.decode_argument(arg) <span class="keyword">for</span> arg <span class="keyword">in</span> args]</span><br><span class="line">        self.path_kwargs = dict((k, self.decode_argument(v, name=k))</span><br><span class="line">                                <span class="keyword">for</span> (k, v) <span class="keyword">in</span> kwargs.items())</span><br><span class="line">        <span class="comment"># If XSRF cookies are turned on, reject form submissions without</span></span><br><span class="line">        <span class="comment"># the proper cookie</span></span><br><span class="line">        <span class="keyword">if</span> self.request.method <span class="keyword">not</span> <span class="keyword">in</span> (<span class="string">"GET"</span>, <span class="string">"HEAD"</span>, <span class="string">"OPTIONS"</span>) <span class="keyword">and</span> \</span><br><span class="line">                self.application.settings.get(<span class="string">"xsrf_cookies"</span>):</span><br><span class="line">            self.check_xsrf_cookie()</span><br><span class="line"></span><br><span class="line">        result = self.prepare()</span><br><span class="line">        <span class="keyword">if</span> is_future(result):</span><br><span class="line">            result = <span class="keyword">yield</span> result</span><br><span class="line">        <span class="keyword">if</span> result <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">raise</span> TypeError(<span class="string">"Expected None, got %r"</span> % result)</span><br><span class="line">        <span class="keyword">if</span> self._prepared_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># Tell the Application we've finished with prepare()</span></span><br><span class="line">            <span class="comment"># and are ready for the body to arrive.</span></span><br><span class="line">            self._prepared_future.set_result(<span class="literal">None</span>)</span><br><span class="line">        <span class="keyword">if</span> self._finished:</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> _has_stream_request_body(self.__class__):</span><br><span class="line">            <span class="comment"># In streaming mode request.body is a Future that signals</span></span><br><span class="line">            <span class="comment"># the body has been completely received.  The Future has no</span></span><br><span class="line">            <span class="comment"># result; the data has been passed to self.data_received</span></span><br><span class="line">            <span class="comment"># instead.</span></span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                <span class="keyword">yield</span> self.request.body</span><br><span class="line">            <span class="keyword">except</span> iostream.StreamClosedError:</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">        method = getattr(self, self.request.method.lower())</span><br><span class="line">        result = method(*self.path_args, **self.path_kwargs)</span><br><span class="line">        <span class="keyword">if</span> is_future(result):</span><br><span class="line">            result = <span class="keyword">yield</span> result</span><br><span class="line">        <span class="keyword">if</span> result <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">raise</span> TypeError(<span class="string">"Expected None, got %r"</span> % result)</span><br><span class="line">        <span class="comment"># 就目前版本的实现而言，默认 `self._auto_finish=True`，只有当方法被</span></span><br><span class="line">        <span class="comment"># `asynchronous` 装饰时才设置为 False，此时 `self.finish()` 将在</span></span><br><span class="line">        <span class="comment"># 异步方法执行完成后回调。</span></span><br><span class="line">        <span class="keyword">if</span> self._auto_finish <span class="keyword">and</span> <span class="keyword">not</span> self._finished:</span><br><span class="line">            self.finish()</span><br><span class="line">    <span class="keyword">except</span> Exception <span class="keyword">as</span> e:</span><br><span class="line">        self._handle_request_exception(e)</span><br><span class="line">        <span class="keyword">if</span> (self._prepared_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">                <span class="keyword">not</span> self._prepared_future.done()):</span><br><span class="line">            <span class="comment"># In case we failed before setting _prepared_future, do it</span></span><br><span class="line">            <span class="comment"># now (to unblock the HTTP server).  Note that this is not</span></span><br><span class="line">            <span class="comment"># in a finally block to avoid GC issues prior to Python 3.4.</span></span><br><span class="line">            self._prepared_future.set_result(<span class="literal">None</span>)</span><br></pre></td></tr></table></figure>
+<p>从上面的代码可看出 <code>RequestHandler</code> 中通过类字段 <code>SUPPORTED_METHODS</code> 来定义 Handler  支持的请求方法（Http method）列表，处理方法名字就是 Http Method 名称的小写字符（<code>method = getattr(self, self.request.method.lower())</code>），例如<code>POST</code> 请求对应 <code>post</code>  方法，<code>GET</code> 请求对应 <code>get</code> 方法。若 Handler 支持当前 Http Method，则进入处理流程：execute prepare method -&gt; execute http method -&gt; execute finish method。另外需要指出的一点是该方法被 <code>gen.coroutine</code> 装饰，没有返回值（或者说返回值 None ），但被一个完整的异常处理块包围而不会抛出任何异常，所以在 <code>_RequestDispatcher</code> 中可以不去关心其返回的 Future 实例何时完成，结果是什么，是否在异步执行时发生异常。</p>
+<h4 id="Application"><a href="#Application" class="headerlink" title="Application"></a>Application</h4><p><code>Application</code> 是一个 Web 应用的 Request Handler 集合。它支持按照虚拟主机/子域名/泛域名对 handler 进行映射，通过 <code>add_handlers</code> 方法可以指定 handler 对应的主机。<code>Application</code>  实例化时可以指定一些默认的 handler，这些 handler 适用于所有的主机地址（匹配主机地址的正则表达式被设置为 <code>&quot;.*$&quot;</code>），构造方法内也是通过调用 <code>add_handlers</code> 方法完成 handler 添加。下面是 <code>add_handlers</code> 的代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">add_handlers</span><span class="params">(self, host_pattern, host_handlers)</span>:</span></span><br><span class="line">    <span class="string">"""Appends the given handlers to our handler list.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Host patterns are processed sequentially in the order they were</span></span><br><span class="line"><span class="string">    added. All matching patterns will be considered.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> host_pattern.endswith(<span class="string">"$"</span>):</span><br><span class="line">        host_pattern += <span class="string">"$"</span></span><br><span class="line">    handlers = []</span><br><span class="line">    <span class="comment"># The handlers with the wildcard host_pattern are a special</span></span><br><span class="line">    <span class="comment"># case - they're added in the constructor but should have lower</span></span><br><span class="line">    <span class="comment"># precedence than the more-precise handlers added later.</span></span><br><span class="line">    <span class="comment"># If a wildcard handler group exists, it should always be last</span></span><br><span class="line">    <span class="comment"># in the list, so insert new groups just before it.</span></span><br><span class="line">    <span class="keyword">if</span> self.handlers <span class="keyword">and</span> self.handlers[<span class="number">-1</span>][<span class="number">0</span>].pattern == <span class="string">'.*$'</span>:</span><br><span class="line">        self.handlers.insert(<span class="number">-1</span>, (re.compile(host_pattern), handlers))</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self.handlers.append((re.compile(host_pattern), handlers))</span><br><span class="line"></span><br><span class="line">    <span class="keyword">for</span> spec <span class="keyword">in</span> host_handlers:</span><br><span class="line">        <span class="keyword">if</span> isinstance(spec, (tuple, list)):</span><br><span class="line">            <span class="comment"># 需要满足 `URLSpec` 构造函数参数列表的要求：(pattern, handler, kwargs=None, name=None)</span></span><br><span class="line">            <span class="keyword">assert</span> len(spec) <span class="keyword">in</span> (<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>)</span><br><span class="line">            spec = URLSpec(*spec)</span><br><span class="line">        handlers.append(spec)</span><br><span class="line">        <span class="keyword">if</span> spec.name:</span><br><span class="line">            <span class="keyword">if</span> spec.name <span class="keyword">in</span> self.named_handlers:</span><br><span class="line">                app_log.warning(</span><br><span class="line">                    <span class="string">"Multiple handlers named %s; replacing previous value"</span>,</span><br><span class="line">                    spec.name)</span><br><span class="line">            self.named_handlers[spec.name] = spec</span><br></pre></td></tr></table></figure>
+<p>对上述代码可以做一些分析：</p>
+<ol>
+<li><p>参数 <code>host_pattern</code> 指定匹配主机地址的正则表达式字符串， <code>host_handlers</code> 是一个 <code>list</code>，其中的元素可以是 <code>URLSpec</code> 实例或者用于构造 <code>URLSpec</code> 实例的参数列表，若是后者需要动态创建 <code>URLSpec</code> 实例。</p>
+</li>
+<li><p><code>self.handlers</code> 字段保存着所有的 handler 列表，其中的每个元素是一个 tuple 实例，tuple 实例的第一个元素是匹配主机的正则表达式实例，第二个元素是 <code>URLSpec</code> 实例列表，其中通配所有主机的元素优先级最低，默认添加到 handler 列表的尾部。</p>
+</li>
+<li><p>对于命名的 handler 同时会被保存在 <code>named_handlers</code> 字段中，以备 <code>reverse_url</code> 方法使用。</p>
+</li>
+</ol>
+<p><code>Application</code> 作为 <code>httputil.HTTPServerConnectionDelegate</code> 的子类，其 <code>start_request</code> 方法将返回一个 <code>_RequestDispatcher</code> 实例来处理请求。在 Tornado v4.0.2 中，<code>start_request</code> 的方法签名与 <code>httputil.HTTPServerConnectionDelegate</code> 定义的不一致，貌似没有重构完成一样，不过后面版本中已经做了修正。<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">start_request</span><span class="params">(self, connection)</span>:</span></span><br><span class="line">    <span class="comment"># Modern HTTPServer interface</span></span><br><span class="line">    <span class="keyword">return</span> _RequestDispatcher(self, connection)</span><br></pre></td></tr></table></figure></p>
+<p><code>Application</code> 本身还有一些诸如启动 HttpSever，配置 debug 参数，HTML 模板解析支持等功能，这里我们仅分析梳理其处理请求的流程，这些功能就不再一一介绍。</p>
+<h4 id="RequestDispatcher"><a href="#RequestDispatcher" class="headerlink" title="_RequestDispatcher"></a>_RequestDispatcher</h4><p><code>_RequestDispatcher</code> 是 <code>httputil.HTTPMessageDelegate</code> 的子类，负责将请求按照主机地址和资源路径分发到具体的 handler 实例。在 Tornado v4.0 之前，这部分功能属于 <code>Application</code>。这样的职责分离是程序不断重构的结果。</p>
+<p><code>_RequestDispatcher</code> 的代码比较简单，结合前面的介绍很容易看懂，这里就直接将分析内容写在代码注释中，不再单独赘述。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">_RequestDispatcher</span><span class="params">(httputil.HTTPMessageDelegate)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, application, connection)</span>:</span></span><br><span class="line">        self.application = application</span><br><span class="line">        self.connection = connection</span><br><span class="line">        self.request = <span class="literal">None</span></span><br><span class="line">        self.chunks = []</span><br><span class="line">        self.handler_class = <span class="literal">None</span></span><br><span class="line">        self.handler_kwargs = <span class="literal">None</span></span><br><span class="line">        self.path_args = []</span><br><span class="line">        self.path_kwargs = &#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">headers_received</span><span class="params">(self, start_line, headers)</span>:</span></span><br><span class="line">        self.set_request(httputil.HTTPServerRequest(</span><br><span class="line">            connection=self.connection, start_line=start_line, headers=headers))</span><br><span class="line">        <span class="comment"># 当前请求处理器若支持 `streaming body` 模式，便直接进入请求处理器的处理阶段，否则便需要</span></span><br><span class="line">        <span class="comment"># 等待 body 数据接收解析完成后才进入（由 finish 方法中进入）。</span></span><br><span class="line">        <span class="keyword">if</span> self.stream_request_body:</span><br><span class="line">            self.request.body = Future()</span><br><span class="line">            <span class="comment"># self.execute() 方法将返回 `handler._prepared_future` 字段，对于 `streaming body` 模式</span></span><br><span class="line">            <span class="comment"># `handler._prepared_future=Future()`,一旦 futrue 完成就表明 `handler` 已准备好接收 body</span></span><br><span class="line">            <span class="comment"># 数据。对于非 `streaming body` 模式，没有准备接收 body 数据这个前提，所以 `handler._prepared_future=None`</span></span><br><span class="line">            <span class="keyword">return</span> self.execute()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">set_request</span><span class="params">(self, request)</span>:</span></span><br><span class="line">        self.request = request</span><br><span class="line">        self._find_handler()</span><br><span class="line">        <span class="comment"># 检查目标请求处理器类是否支持 `streaming body`，实际上也就是看看类型是否被</span></span><br><span class="line">        <span class="comment"># `stream_request_body` 装饰。`stream_request_body` 装饰器由 Tornado v4.0</span></span><br><span class="line">        <span class="comment"># 开始引入，在之前版本中客户端上传的 body 默认会被解析到 request.arguments 和 request.files</span></span><br><span class="line">        <span class="comment"># 中。这就预示着在处理文件上传时，文件被整个暂存在内存中，很显然非常不适合较大文件上传。</span></span><br><span class="line">        <span class="comment"># `streaming body` 模式的引入，可以让使用者去直接处理 raw body 数据，一边接收一</span></span><br><span class="line">        <span class="comment"># 边写到存储中，减少内存的开销。详细一点说明请参考 `stream_request_body` 装饰器说</span></span><br><span class="line">        <span class="comment"># 明。</span></span><br><span class="line">        <span class="comment"># 注：对于文件上传， raw body 是 multipart/form-data 包装的数据，不仅仅包括文件数据。对</span></span><br><span class="line">        <span class="comment"># raw body 的数据解析，可以参考 httputil.parse_body_arguments/parse_multipart_form_data 方法。</span></span><br><span class="line">        self.stream_request_body = _has_stream_request_body(self.handler_class)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">_find_handler</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="comment"># Identify the handler to use as soon as we have the request.</span></span><br><span class="line">        <span class="comment"># Save url path arguments for later.</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># 根据请求的主机和资源路径来定位请求处理器类。</span></span><br><span class="line">        <span class="comment"># 1. 查找对应主机的所有请求处理器。Tornado 支持虚拟主机，可以为不同的虚拟主机配置不同的请求处理器，</span></span><br><span class="line">        <span class="comment">#    参见 Application.add_handlers。 不过，一般生产环境都不会直接把 Tornado 进程暴露在请求处</span></span><br><span class="line">        <span class="comment">#    理最前端，这个功能可以由处理前端来支持，比如 nginx。</span></span><br><span class="line">        <span class="comment"># 2. 没有为请求的虚拟主机配置处理器时由 `RedirectHandler` 重新定位到默认主机。</span></span><br><span class="line">        <span class="comment"># 3. 接着根据资源路径来定位具体的请求处理器。如有需要便将 path parameters 解析出来放到 path_kwargs</span></span><br><span class="line">        <span class="comment">#    或 path_args 字段中。放到哪一个字段取决于资源路径匹配的正则表达式分组是否命名。</span></span><br><span class="line">        <span class="comment"># 4. 若上一步没有定位到请求处理器，则尝试交由默认的处理器进行处理，否则由 `ErrorHandler` 处理。</span></span><br><span class="line">        app = self.application</span><br><span class="line">        handlers = app._get_host_handlers(self.request)</span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> handlers:</span><br><span class="line">            self.handler_class = RedirectHandler</span><br><span class="line">            self.handler_kwargs = dict(url=<span class="string">"http://"</span> + app.default_host + <span class="string">"/"</span>)</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        <span class="keyword">for</span> spec <span class="keyword">in</span> handlers:</span><br><span class="line">            match = spec.regex.match(self.request.path)</span><br><span class="line">            <span class="keyword">if</span> match:</span><br><span class="line">                self.handler_class = spec.handler_class</span><br><span class="line">                self.handler_kwargs = spec.kwargs</span><br><span class="line">                <span class="keyword">if</span> spec.regex.groups:</span><br><span class="line">                    <span class="comment"># Pass matched groups to the handler.  Since</span></span><br><span class="line">                    <span class="comment"># match.groups() includes both named and</span></span><br><span class="line">                    <span class="comment"># unnamed groups, we want to use either groups</span></span><br><span class="line">                    <span class="comment"># or groupdict but not both.</span></span><br><span class="line">                    <span class="keyword">if</span> spec.regex.groupindex:</span><br><span class="line">                        self.path_kwargs = dict(</span><br><span class="line">                            (str(k), _unquote_or_none(v))</span><br><span class="line">                            <span class="keyword">for</span> (k, v) <span class="keyword">in</span> match.groupdict().items())</span><br><span class="line">                    <span class="keyword">else</span>:</span><br><span class="line">                        self.path_args = [_unquote_or_none(s)</span><br><span class="line">                                          <span class="keyword">for</span> s <span class="keyword">in</span> match.groups()]</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">        <span class="keyword">if</span> app.settings.get(<span class="string">'default_handler_class'</span>):</span><br><span class="line">            self.handler_class = app.settings[<span class="string">'default_handler_class'</span>]</span><br><span class="line">            self.handler_kwargs = app.settings.get(</span><br><span class="line">                <span class="string">'default_handler_args'</span>, &#123;&#125;)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.handler_class = ErrorHandler</span><br><span class="line">            self.handler_kwargs = dict(status_code=<span class="number">404</span>)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">data_received</span><span class="params">(self, data)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.stream_request_body:</span><br><span class="line">            <span class="comment"># streaming body 模式，由 handler 来自行处理 body stream data</span></span><br><span class="line">            <span class="keyword">return</span> self.handler.data_received(data)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.chunks.append(data)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.stream_request_body:</span><br><span class="line">            self.request.body.set_result(<span class="literal">None</span>)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.request.body = <span class="string">b''</span>.join(self.chunks)</span><br><span class="line">            self.request._parse_body()</span><br><span class="line">            self.execute()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_connection_close</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.stream_request_body:</span><br><span class="line">            self.handler.on_connection_close()</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.chunks = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">execute</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="comment"># If template cache is disabled (usually in the debug mode),</span></span><br><span class="line">        <span class="comment"># re-compile templates and reload static files on every</span></span><br><span class="line">        <span class="comment"># request so you don't need to restart to see changes</span></span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self.application.settings.get(<span class="string">"compiled_template_cache"</span>, <span class="literal">True</span>):</span><br><span class="line">            <span class="keyword">with</span> RequestHandler._template_loader_lock:</span><br><span class="line">                <span class="keyword">for</span> loader <span class="keyword">in</span> RequestHandler._template_loaders.values():</span><br><span class="line">                    loader.reset()</span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self.application.settings.get(<span class="string">'static_hash_cache'</span>, <span class="literal">True</span>):</span><br><span class="line">            StaticFileHandler.reset()</span><br><span class="line"></span><br><span class="line">        self.handler = self.handler_class(self.application, self.request,</span><br><span class="line">                                          **self.handler_kwargs)</span><br><span class="line">        transforms = [t(self.request) <span class="keyword">for</span> t <span class="keyword">in</span> self.application.transforms]</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> self.stream_request_body:</span><br><span class="line">            self.handler._prepared_future = Future()</span><br><span class="line">        <span class="comment"># Note that if an exception escapes handler._execute it will be</span></span><br><span class="line">        <span class="comment"># trapped in the Future it returns (which we are ignoring here).</span></span><br><span class="line">        <span class="comment"># However, that shouldn't happen because _execute has a blanket</span></span><br><span class="line">        <span class="comment"># except handler, and we cannot easily access the IOLoop here to</span></span><br><span class="line">        <span class="comment"># call add_future.</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># handler._execute 返回的是一个 Future 对象，但这里不关心 Future 的结果。</span></span><br><span class="line">        <span class="comment"># 一方面是由于 handler._execute 内部包含在一个异常捕获块中，所以实际上不必担心</span></span><br><span class="line">        <span class="comment"># 其会抛出异常；另一方面在这里不太方便访问 IOLoop 以调用 add_future 获取结果。</span></span><br><span class="line">        self.handler._execute(transforms, *self.path_args, **self.path_kwargs)</span><br><span class="line">        <span class="comment"># If we are streaming the request body, then execute() is finished</span></span><br><span class="line">        <span class="comment"># when the handler has prepared to receive the body.  If not,</span></span><br><span class="line">        <span class="comment"># it doesn't matter when execute() finishes (so we return None)</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># streaming 模式时 handler._prepared_future 将在 handler 准备好接收 body 数据时完成。</span></span><br><span class="line">        <span class="keyword">return</span> self.handler._prepared_future</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/HTTPServer/" rel="tag"># HTTPServer</a>
+            
+              <a href="/tags/HTTPServerConnectionDelegate/" rel="tag"># HTTPServerConnectionDelegate</a>
+            
+              <a href="/tags/HTTPMessageDelegate/" rel="tag"># HTTPMessageDelegate</a>
+            
+              <a href="/tags/HTTPConnection/" rel="tag"># HTTPConnection</a>
+            
+              <a href="/tags/HTTP1ServerConnection/" rel="tag"># HTTP1ServerConnection</a>
+            
+              <a href="/tags/HTTP1Connection/" rel="tag"># HTTP1Connection</a>
+            
+              <a href="/tags/Application/" rel="tag"># Application</a>
+            
+              <a href="/tags/RequestHandler/" rel="tag"># RequestHandler</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2016/01/14/Linux Daemon Processes/" rel="next" title="Linux 守护进程">
+                  <i class="fa fa-chevron-left"></i> Linux 守护进程
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2016/01/24/tornado.httputil.parse_body_arguments/" rel="prev" title="tornado.httputil 对 Http request message-body 的解析">
+                  tornado.httputil 对 Http request message-body 的解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Tornado-Web-Framwork"><span class="nav-number">2.</span> <span class="nav-text">Tornado Web Framwork</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#URLSpec"><span class="nav-number">2.1.</span> <span class="nav-text">URLSpec</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#RequestHandler"><span class="nav-number">2.2.</span> <span class="nav-text">RequestHandler</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Application"><span class="nav-number">2.3.</span> <span class="nav-text">Application</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#RequestDispatcher"><span class="nav-number">2.4.</span> <span class="nav-text">_RequestDispatcher</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

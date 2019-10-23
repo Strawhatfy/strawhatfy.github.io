@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言网站安全不外乎就是信息安全的三个基本要点，简单来说就是：  机密性，网站要保护用户的隐私数据不被窃取，账号不被盗用，面对的主要的攻击方式是植入木马； 可用性，网站要保证其服务是可用的，面对的主要的攻击方式是DOS和DDOS； 完整性，网站要确保用户请求信息或数据不被未授权的篡改或在篡改后能够被迅速发现，面对主要的攻击方式是XSS和CSRF；  这篇笔记主要分析 Tornado 对 CSRF 的">
+<meta name="keywords" content="Secure Cookies,XSRF,CSRF,跨站请求伪造">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护">
+<meta property="og:url" content="http://yoursite.com/2016/02/15/tornado.web_secure_cookies_xsrf/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言网站安全不外乎就是信息安全的三个基本要点，简单来说就是：  机密性，网站要保护用户的隐私数据不被窃取，账号不被盗用，面对的主要的攻击方式是植入木马； 可用性，网站要保证其服务是可用的，面对的主要的攻击方式是DOS和DDOS； 完整性，网站要确保用户请求信息或数据不被未授权的篡改或在篡改后能够被迅速发现，面对主要的攻击方式是XSS和CSRF；  这篇笔记主要分析 Tornado 对 CSRF 的">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.350Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护">
+<meta name="twitter:description" content="引言网站安全不外乎就是信息安全的三个基本要点，简单来说就是：  机密性，网站要保护用户的隐私数据不被窃取，账号不被盗用，面对的主要的攻击方式是植入木马； 可用性，网站要保证其服务是可用的，面对的主要的攻击方式是DOS和DDOS； 完整性，网站要确保用户请求信息或数据不被未授权的篡改或在篡改后能够被迅速发现，面对主要的攻击方式是XSS和CSRF；  这篇笔记主要分析 Tornado 对 CSRF 的">
+  <link rel="canonical" href="http://yoursite.com/2016/02/15/tornado.web_secure_cookies_xsrf/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/02/15/tornado.web_secure_cookies_xsrf/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2016-02-15 22:00:01" itemprop="dateCreated datePublished" datetime="2016-02-15T22:00:01+08:00">2016-02-15</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p>网站安全不外乎就是信息安全的三个基本要点，简单来说就是：</p>
+<ol>
+<li>机密性，网站要保护用户的隐私数据不被窃取，账号不被盗用，面对的主要的攻击方式是植入木马；</li>
+<li>可用性，网站要保证其服务是可用的，面对的主要的攻击方式是DOS和DDOS；</li>
+<li>完整性，网站要确保用户请求信息或数据不被未授权的篡改或在篡改后能够被迅速发现，面对主要的攻击方式是XSS和CSRF；</li>
+</ol>
+<p>这篇笔记主要分析 Tornado 对 CSRF 的防范。众所周知 HTTP 协议是一个无状态协议，这便意味着每次请求都是独立的，要在两次请求之间共享数据（或者称为保持会话状态）便必须在请求时重传数据。 Cookie 和 Session 分别是客户端和服务端保持会话状态的机制。 Tornado Web 框架中已经默认对 Cookie 提供了支持，而对 Session 却没有提供内置的 Session 实现。我猜测这是因为考虑到现在的 Web 应用往往比较复杂并需要分布式存储 Session 数据，若要实现一个大而全 Session 来满足复杂的应能用场景基本上不可能，干脆就不内置而交由应用去自行根据需求来实现。</p>
+<p>通常 Cookie 的使用不当往往导致安全问题， Tornado 在设计时便考虑到这个问题，为此内置 secure cookies 来阻止客户端非法修改 cookie 数据，以此来防范常见的 cookie 安全漏洞。Tornado 官方文档中专门用了一节 <a href="http://www.tornadoweb.org/en/stable/guide/security.html" target="_blank" rel="noopener">《认证和安全》</a> 来介绍相关内容（中文翻译：<a href="https://tornado-zh.readthedocs.org/zh/latest/guide/security.html" target="_blank" rel="noopener">https://tornado-zh.readthedocs.org/zh/latest/guide/security.html</a> ），在网上也有很多介绍这方面的资料，比如：<a href="http://demo.pythoner.com/itt2zh/ch6.html#ch6-2-1" target="_blank" rel="noopener">http://demo.pythoner.com/itt2zh/ch6.html#ch6-2-1</a> 就写的很好，所以这篇笔记不再从 “如何使用 secure cookies 来编写安全应用” 的角度来讨论，而是结合代码分析实现原理。</p>
+<h3 id="Secure-Cookies"><a href="#Secure-Cookies" class="headerlink" title="Secure Cookies"></a>Secure Cookies</h3><p>Cookies 是不安全的，可以被客户端轻易修改和伪造，Tornado 的 Secure Cookies 使用加密签名来验证 Cookie 数据是否被非法修改过，签名后的 Cookie 数据包括时间戳、 HMAC 签名和编码后的 cookie 值等信。<code>tornado.web.RequestHandler</code> 通过 <code>set_secure_cookie()</code> 和 <code>get_secure_cookie()</code> 方法来设置和获取 Secure Cookies，因为 HMAC 签名密钥是由 <code>tornado.web.Application</code> 实例来提供的，所以在实例化  <code>tornado.web.Application</code> 时必须在 <code>settings</code> 中提供 <code>cookie_secret</code> 参数才能使用安全 Cookies。否则，<code>self.require_setting(&quot;cookie_secret&quot;, &quot;secure cookies&quot;)</code> 会抛出未设置 <code>cookie_secret</code>  异常。</p>
+<p><code>cookie_secret</code> 参数是一个随机字节序列，用来制作 HMAC 签名，可以使用下面的代码来生成：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">&gt;&gt;&gt; </span><span class="keyword">import</span> base64, uuid</span><br><span class="line"><span class="meta">&gt;&gt;&gt; </span>base64.b64encode(uuid.uuid4().bytes + uuid.uuid4().bytes)</span><br></pre></td></tr></table></figure></p>
+<a id="more"></a>
+<h4 id="set-secure-cookie-方法"><a href="#set-secure-cookie-方法" class="headerlink" title="set_secure_cookie 方法"></a>set_secure_cookie 方法</h4><p><code>set_secure_cookie</code> 方法是对 <code>set_cookie</code> 方法的包装，其方法签名中需要注意的是 <code>expires_days</code> 和 <code>version</code> 参数。</p>
+<ol>
+<li><p><code>expires_days</code> 按照 HTTP 协议的规定，用于指示客户端该 Cookie 的有效期，默认 30 天。这个参数与 <code>get_secure_cookie</code> 方法的 <code>max_age_days</code> 参数严格来讲没有必然的联系，我们可以使用一个小于 <code>expires_days</code> 的 <code>max_age_days</code> 值在服务端控制安全 Cookie 的有效期（这个是与安全 Cookie 中的时间戳比较得到的，后面会从代码中看到）。</p>
+</li>
+<li><p><code>version</code> 参数的引入主要是兼容旧的签名方式（版本号为 1 ，使用 SHA1 签名），目前默认使用新的签名方式（版本号为 2，使用 SHA256 签名）。两种方式不仅签名算法不同，签名输出的 Cookie 数据字段和格式也不同。</p>
+</li>
+</ol>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">set_secure_cookie</span><span class="params">(self, name, value, expires_days=<span class="number">30</span>, version=None, **kwargs)</span>:</span></span><br><span class="line">    self.set_cookie(name, self.create_signed_value(name, value,</span><br><span class="line">                                                   version=version),</span><br><span class="line">                    expires_days=expires_days, **kwargs)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">create_signed_value</span><span class="params">(self, name, value, version=None)</span>:</span></span><br><span class="line">    self.require_setting(<span class="string">"cookie_secret"</span>, <span class="string">"secure cookies"</span>)</span><br><span class="line">    <span class="keyword">return</span> create_signed_value(self.application.settings[<span class="string">"cookie_secret"</span>],</span><br><span class="line">                               name, value, version=version)</span><br></pre></td></tr></table></figure>
+<p>上面代码明确调用 <code>self.require_setting(&quot;cookie_secret&quot;, &quot;secure cookies&quot;)</code> 来检查是否已经设置有签名密钥。</p>
+<p><code>create_signed_value</code> 函数的代码及相关签名函数如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">DEFAULT_SIGNED_VALUE_VERSION = <span class="number">2</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">create_signed_value</span><span class="params">(secret, name, value, version=None, clock=None)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> version <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        version = DEFAULT_SIGNED_VALUE_VERSION</span><br><span class="line">    <span class="keyword">if</span> clock <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        clock = time.time</span><br><span class="line">    timestamp = utf8(str(int(clock())))</span><br><span class="line">    value = base64.b64encode(utf8(value))</span><br><span class="line">    <span class="keyword">if</span> version == <span class="number">1</span>:</span><br><span class="line">        signature = _create_signature_v1(secret, name, value, timestamp)</span><br><span class="line">        value = <span class="string">b"|"</span>.join([value, timestamp, signature])</span><br><span class="line">        <span class="keyword">return</span> value</span><br><span class="line">    <span class="keyword">elif</span> version == <span class="number">2</span>:</span><br><span class="line">        <span class="comment"># The v2 format consists of a version number and a series of</span></span><br><span class="line">        <span class="comment"># length-prefixed fields "%d:%s", the last of which is a</span></span><br><span class="line">        <span class="comment"># signature, all separated by pipes.  All numbers are in</span></span><br><span class="line">        <span class="comment"># decimal format with no leading zeros.  The signature is an</span></span><br><span class="line">        <span class="comment"># HMAC-SHA256 of the whole string up to that point, including</span></span><br><span class="line">        <span class="comment"># the final pipe.</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># The fields are:</span></span><br><span class="line">        <span class="comment"># - format version (i.e. 2; no length prefix)</span></span><br><span class="line">        <span class="comment"># - key version (currently 0; reserved for future key rotation features)</span></span><br><span class="line">        <span class="comment"># - timestamp (integer seconds since epoch)</span></span><br><span class="line">        <span class="comment"># - name (not encoded; assumed to be ~alphanumeric)</span></span><br><span class="line">        <span class="comment"># - value (base64-encoded)</span></span><br><span class="line">        <span class="comment"># - signature (hex-encoded; no length prefix)</span></span><br><span class="line">        <span class="function"><span class="keyword">def</span> <span class="title">format_field</span><span class="params">(s)</span>:</span></span><br><span class="line">            <span class="keyword">return</span> utf8(<span class="string">"%d:"</span> % len(s)) + utf8(s)</span><br><span class="line">        to_sign = <span class="string">b"|"</span>.join([</span><br><span class="line">            <span class="string">b"2|1:0"</span>,</span><br><span class="line">            format_field(timestamp),</span><br><span class="line">            format_field(name),</span><br><span class="line">            format_field(value),</span><br><span class="line">            <span class="string">b''</span>])</span><br><span class="line">        signature = _create_signature_v2(secret, to_sign)</span><br><span class="line">        <span class="keyword">return</span> to_sign + signature</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">raise</span> ValueError(<span class="string">"Unsupported version %d"</span> % version)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_create_signature_v1</span><span class="params">(secret, *parts)</span>:</span></span><br><span class="line">    hash = hmac.new(utf8(secret), digestmod=hashlib.sha1)</span><br><span class="line">    <span class="keyword">for</span> part <span class="keyword">in</span> parts:</span><br><span class="line">        hash.update(utf8(part))</span><br><span class="line">    <span class="keyword">return</span> utf8(hash.hexdigest())</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_create_signature_v2</span><span class="params">(secret, s)</span>:</span></span><br><span class="line">    hash = hmac.new(utf8(secret), digestmod=hashlib.sha256)</span><br><span class="line">    hash.update(utf8(s))</span><br><span class="line">    <span class="keyword">return</span> utf8(hash.hexdigest())</span><br></pre></td></tr></table></figure>
+<p>Cookie 值通过 <code>value = base64.b64encode(utf8(value))</code> 进行 base64 编码转换，所以 <code>set_secure_cookie</code> 能支持任意的字符，这与 <code>set_cookie</code> 方法不同（python2 是转换为 str，python3 时转换为 unicode string，且不允许输入 “\x00-\x20” 之间的字符，其实现代码中由正则表达式来检查）。</p>
+<p>模块变量 <code>DEFAULT_SIGNED_VALUE_VERSION</code>  硬编码指示默认的签名版本是 2，除非调用 <code>set_secure_cookie</code> 时指定版本号。两个版本之间的数据格式看代码就很明确，版本 1 就是简单的 “value|timestamp|signature” 拼接，版本 2 多了几个字段，并且记录值的字符串长度，尤其是预留的 <code>key_version</code> 字段为后续轮流使用多个 <code>cookie_secret</code> 提供了支持（我目前分析使用的 Tornado v4.0.1 还没有实现这个特性，但最新的 v4.3 已经默认支持，具体我没有去查看代码，感兴趣可以去看看），<strong>并且对整个字符串进行签名（版本 1 仅仅对 value 进行了签名</strong>），这样可以大大增加安全系数。<strong>这里额外提一下时间戳（timestamp）字段，由于客户端在发送 Cookie 时并不会提供有效期，为了能够准确控制有效期，这里将 Cookie 生成的时间戳写入值当中，以便后续在服务端进行有效期验证。</strong></p>
+<h4 id="get-secure-cookie-方法"><a href="#get-secure-cookie-方法" class="headerlink" title="get_secure_cookie 方法"></a>get_secure_cookie 方法</h4><p><code>get_secure_cookie</code> 方法签名中的 <code>value</code> 参数指的是通过 <code>set_secure_cookie</code> 加密签名后的 Cookie 值，默认是 <code>None</code> 则会从客户端发送回来的 Cookies 中获取指定名称的 Cookie 值作为 <code>value</code>，再进行签名验证，传入的 <code>max_age_days</code>，<code>min_version</code> 将对 Cookie 做进一步比较验证，验证通过以后返回 base64 解码的 Cookie 值（也就是下面注释中说的不论 python 的版本，返回的是 byte string，与 <code>get_cookie</code> 方法不同。<code>get_cookie</code> 方法在 python3 中返回的是 unicode string。）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">get_secure_cookie</span><span class="params">(self, name, value=None, max_age_days=<span class="number">31</span>, min_version=None)</span>:</span></span><br><span class="line">    <span class="string">"""Returns the given signed cookie if it validates, or None.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The decoded cookie value is returned as a byte string (unlike</span></span><br><span class="line"><span class="string">    `get_cookie`).</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionchanged:: 3.2.1</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">       Added the ``min_version`` argument.  Introduced cookie version 2;</span></span><br><span class="line"><span class="string">       both versions 1 and 2 are accepted by default.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    self.require_setting(<span class="string">"cookie_secret"</span>, <span class="string">"secure cookies"</span>)</span><br><span class="line">    <span class="keyword">if</span> value <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        value = self.get_cookie(name)</span><br><span class="line">    <span class="keyword">return</span> decode_signed_value(self.application.settings[<span class="string">"cookie_secret"</span>],</span><br><span class="line">                               name, value, max_age_days=max_age_days,</span><br><span class="line">                               min_version=min_version)</span><br></pre></td></tr></table></figure>
+<p><code>decode_signed_value</code> 方法的相关代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br></pre></td><td class="code"><pre><span class="line">DEFAULT_SIGNED_VALUE_MIN_VERSION = <span class="number">1</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># A leading version number in decimal with no leading zeros, followed by a pipe.</span></span><br><span class="line">_signed_value_version_re = re.compile(<span class="string">br"^([1-9][0-9]*)\|(.*)$"</span>)</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">decode_signed_value</span><span class="params">(secret, name, value, max_age_days=<span class="number">31</span>, clock=None, min_version=None)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> clock <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        clock = time.time</span><br><span class="line">    <span class="keyword">if</span> min_version <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        min_version = DEFAULT_SIGNED_VALUE_MIN_VERSION</span><br><span class="line">    <span class="keyword">if</span> min_version &gt; <span class="number">2</span>:</span><br><span class="line">        <span class="keyword">raise</span> ValueError(<span class="string">"Unsupported min_version %d"</span> % min_version)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> value:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># Figure out what version this is.  Version 1 did not include an</span></span><br><span class="line">    <span class="comment"># explicit version field and started with arbitrary base64 data,</span></span><br><span class="line">    <span class="comment"># which makes this tricky.</span></span><br><span class="line">    value = utf8(value)</span><br><span class="line">    m = _signed_value_version_re.match(value)</span><br><span class="line">    <span class="keyword">if</span> m <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        version = <span class="number">1</span></span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            version = int(m.group(<span class="number">1</span>))</span><br><span class="line">            <span class="keyword">if</span> version &gt; <span class="number">999</span>:</span><br><span class="line">                <span class="comment"># Certain payloads from the version-less v1 format may</span></span><br><span class="line">                <span class="comment"># be parsed as valid integers.  Due to base64 padding</span></span><br><span class="line">                <span class="comment"># restrictions, this can only happen for numbers whose</span></span><br><span class="line">                <span class="comment"># length is a multiple of 4, so we can treat all</span></span><br><span class="line">                <span class="comment"># numbers up to 999 as versions, and for the rest we</span></span><br><span class="line">                <span class="comment"># fall back to v1 format.</span></span><br><span class="line">                version = <span class="number">1</span></span><br><span class="line">        <span class="keyword">except</span> ValueError:</span><br><span class="line">            version = <span class="number">1</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> version &lt; min_version:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> version == <span class="number">1</span>:</span><br><span class="line">        <span class="keyword">return</span> _decode_signed_value_v1(secret, name, value, max_age_days, clock)</span><br><span class="line">    <span class="keyword">elif</span> version == <span class="number">2</span>:</span><br><span class="line">        <span class="keyword">return</span> _decode_signed_value_v2(secret, name, value, max_age_days, clock)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_decode_signed_value_v1</span><span class="params">(secret, name, value, max_age_days, clock)</span>:</span></span><br><span class="line">    parts = utf8(value).split(<span class="string">b"|"</span>)</span><br><span class="line">    <span class="keyword">if</span> len(parts) != <span class="number">3</span>:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    signature = _create_signature_v1(secret, name, parts[<span class="number">0</span>], parts[<span class="number">1</span>])</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> _time_independent_equals(parts[<span class="number">2</span>], signature):</span><br><span class="line">        gen_log.warning(<span class="string">"Invalid cookie signature %r"</span>, value)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    timestamp = int(parts[<span class="number">1</span>])</span><br><span class="line">    <span class="keyword">if</span> timestamp &lt; clock() - max_age_days * <span class="number">86400</span>:</span><br><span class="line">        gen_log.warning(<span class="string">"Expired cookie %r"</span>, value)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> timestamp &gt; clock() + <span class="number">31</span> * <span class="number">86400</span>:</span><br><span class="line">        <span class="comment"># _cookie_signature does not hash a delimiter between the</span></span><br><span class="line">        <span class="comment"># parts of the cookie, so an attacker could transfer trailing</span></span><br><span class="line">        <span class="comment"># digits from the payload to the timestamp without altering the</span></span><br><span class="line">        <span class="comment"># signature.  For backwards compatibility, sanity-check timestamp</span></span><br><span class="line">        <span class="comment"># here instead of modifying _cookie_signature.</span></span><br><span class="line">        gen_log.warning(<span class="string">"Cookie timestamp in future; possible tampering %r"</span>, value)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> parts[<span class="number">1</span>].startswith(<span class="string">b"0"</span>):</span><br><span class="line">        gen_log.warning(<span class="string">"Tampered cookie %r"</span>, value)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="keyword">return</span> base64.b64decode(parts[<span class="number">0</span>])</span><br><span class="line">    <span class="keyword">except</span> Exception:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_decode_signed_value_v2</span><span class="params">(secret, name, value, max_age_days, clock)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">_consume_field</span><span class="params">(s)</span>:</span></span><br><span class="line">        length, _, rest = s.partition(<span class="string">b':'</span>)</span><br><span class="line">        n = int(length)</span><br><span class="line">        field_value = rest[:n]</span><br><span class="line">        <span class="comment"># In python 3, indexing bytes returns small integers; we must</span></span><br><span class="line">        <span class="comment"># use a slice to get a byte string as in python 2.</span></span><br><span class="line">        <span class="keyword">if</span> rest[n:n + <span class="number">1</span>] != <span class="string">b'|'</span>:</span><br><span class="line">            <span class="keyword">raise</span> ValueError(<span class="string">"malformed v2 signed value field"</span>)</span><br><span class="line">        rest = rest[n + <span class="number">1</span>:]</span><br><span class="line">        <span class="keyword">return</span> field_value, rest</span><br><span class="line">    rest = value[<span class="number">2</span>:]  <span class="comment"># remove version number</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        key_version, rest = _consume_field(rest)</span><br><span class="line">        timestamp, rest = _consume_field(rest)</span><br><span class="line">        name_field, rest = _consume_field(rest)</span><br><span class="line">        value_field, rest = _consume_field(rest)</span><br><span class="line">    <span class="keyword">except</span> ValueError:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    passed_sig = rest</span><br><span class="line">    signed_string = value[:-len(passed_sig)]</span><br><span class="line">    expected_sig = _create_signature_v2(secret, signed_string)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> _time_independent_equals(passed_sig, expected_sig):</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> name_field != utf8(name):</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    timestamp = int(timestamp)</span><br><span class="line">    <span class="keyword">if</span> timestamp &lt; clock() - max_age_days * <span class="number">86400</span>:</span><br><span class="line">        <span class="comment"># The signature has expired.</span></span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="keyword">return</span> base64.b64decode(value_field)</span><br><span class="line">    <span class="keyword">except</span> Exception:</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> hasattr(hmac, <span class="string">'compare_digest'</span>):  <span class="comment"># python 3.3</span></span><br><span class="line">    _time_independent_equals = hmac.compare_digest</span><br><span class="line"><span class="keyword">else</span>:</span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">_time_independent_equals</span><span class="params">(a, b)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> len(a) != len(b):</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">        result = <span class="number">0</span></span><br><span class="line">        <span class="keyword">if</span> isinstance(a[<span class="number">0</span>], int):  <span class="comment"># python3 byte strings</span></span><br><span class="line">            <span class="keyword">for</span> x, y <span class="keyword">in</span> zip(a, b):</span><br><span class="line">                result |= x ^ y</span><br><span class="line">        <span class="keyword">else</span>:  <span class="comment"># python2</span></span><br><span class="line">            <span class="keyword">for</span> x, y <span class="keyword">in</span> zip(a, b):</span><br><span class="line">                result |= ord(x) ^ ord(y)</span><br><span class="line">        <span class="keyword">return</span> result == <span class="number">0</span></span><br></pre></td></tr></table></figure>
+<p><code>_signed_value_version_re</code> 正则表达式用于获取签名所用的版本号，对于旧版本（版本 1 ）加密签名的 cookie 数据中没有版本号这个字段，默认取 1。然后与指定的 <code>min_version</code> 进行比较，仅当大于等于 <code>min_version</code> 才进行下一步验证。版本 1 由函数 <code>_decode_signed_value_v1</code> 验证，版本 2 由 函数 <code>_decode_signed_value_v2</code> 验证，这两个函数主要就是按照对应签名格式解析数据，并对目标签名和时间戳等字段进行比较验证。<strong>需要说一下的是由于版本 1 的设计缺陷，没有对 <code>timestamp</code> 进行签名，为了尽可能防止攻击者篡改时间戳来进行攻击， <code>_decode_signed_value_v1</code> 函数对 <code>timestamp</code> 执行了额外的检查（<code>timestamp &gt; clock() + 31 * 86400</code>），但这个检查并不能完全杜绝此类攻击。这应该也是重新设计版本 2 的一个原因。</strong></p>
+<h3 id="XSRF"><a href="#XSRF" class="headerlink" title="XSRF"></a>XSRF</h3><p><a href="https://en.wikipedia.org/wiki/Cross-site_request_forgery" target="_blank" rel="noopener">XSRF（Cross-site request forgery，跨站请求伪造）</a>，也被简写为 CSRF，发音为”sea surf”，这是一个常见的安全漏洞（这里有一篇写的不错的文章<a href="http://www.cnblogs.com/hyddd/archive/2009/04/09/1432744.html" target="_blank" rel="noopener">《浅谈CSRF攻击方式》</a>，有兴趣的可以简单了解下）。通常 Synchronizer token pattern 是一种常见的解决方案，该方案利用了第三方站点无法访问 cookie 的限制，为每个客户端设置一个不同的 token，并将其存储在 cookie 中。当用户发起有副作用的 HTTP 请求时，则必须携带一个包含该 token 的参数（也可以通过 Http Header 传递），服务端将对存储在 cookie 和请求参数中的 token 进行比较，以防止潜在的跨站请求伪造。</p>
+<h4 id="生成-xsrf-token"><a href="#生成-xsrf-token" class="headerlink" title="生成 xsrf_token"></a>生成 xsrf_token</h4><p><code>tornado.web.RequestHandler</code> 中与生成跨站请求伪造 token 直接相关的是 <code>xsrf_token</code> 属性和 <code>xsrf_form_html</code> 方法。</p>
+<ol>
+<li><p><code>xsrf_token</code> 属性在首次访问时会为客户端设置一个名为 <code>_xsrf</code> 的 cookie，其值变为前面所说的 token。token 有两个版本，版本号分别为 1 和 2，若没有在应用中设置 <code>xsrf_cookie_version</code> 参数则默认使用版本 2。版本 2 为每次请求都生成一个随机的掩码，相比较版本 1 而言安全性大大增强。</p>
+</li>
+<li><p><code>xsrf_form_html</code> 就是返回一个隐藏的 HTML &lt; input/&gt; 元素，用于包含在页面的 Form 元素中以便在 POST 请求时将 token 发送给服务端验证。</p>
+</li>
+</ol>
+<p>详细代码如下所示：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@property</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">xsrf_token</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> hasattr(self, <span class="string">"_xsrf_token"</span>):</span><br><span class="line">        version, token, timestamp = self._get_raw_xsrf_token()</span><br><span class="line">        output_version = self.settings.get(<span class="string">"xsrf_cookie_version"</span>, <span class="number">2</span>)</span><br><span class="line">        <span class="keyword">if</span> output_version == <span class="number">1</span>:</span><br><span class="line">            self._xsrf_token = binascii.b2a_hex(token)</span><br><span class="line">        <span class="keyword">elif</span> output_version == <span class="number">2</span>:</span><br><span class="line">            mask = os.urandom(<span class="number">4</span>)</span><br><span class="line">            self._xsrf_token = <span class="string">b"|"</span>.join([</span><br><span class="line">                <span class="string">b"2"</span>,</span><br><span class="line">                binascii.b2a_hex(mask),</span><br><span class="line">                binascii.b2a_hex(_websocket_mask(mask, token)),</span><br><span class="line">                utf8(str(int(timestamp)))])</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">raise</span> ValueError(<span class="string">"unknown xsrf cookie version %d"</span>,</span><br><span class="line">                             output_version)</span><br><span class="line">        <span class="keyword">if</span> version <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            expires_days = <span class="number">30</span> <span class="keyword">if</span> self.current_user <span class="keyword">else</span> <span class="literal">None</span></span><br><span class="line">            self.set_cookie(<span class="string">"_xsrf"</span>, self._xsrf_token,</span><br><span class="line">                            expires_days=expires_days)</span><br><span class="line">    <span class="keyword">return</span> self._xsrf_token</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">xsrf_form_html</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""An HTML ``&lt;input/&gt;`` element to be included with all POST forms.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    It defines the ``_xsrf`` input value, which we check on all POST</span></span><br><span class="line"><span class="string">    requests to prevent cross-site request forgery. If you have set</span></span><br><span class="line"><span class="string">    the ``xsrf_cookies`` application setting, you must include this</span></span><br><span class="line"><span class="string">    HTML within all of your HTML forms.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    In a template, this method should be called with ``&#123;% module</span></span><br><span class="line"><span class="string">    xsrf_form_html() %&#125;``</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    See `check_xsrf_cookie()` above for more information.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">return</span> <span class="string">'&lt;input type="hidden" name="_xsrf" value="'</span> + \</span><br><span class="line">        escape.xhtml_escape(self.xsrf_token) + <span class="string">'"/&gt;'</span></span><br></pre></td></tr></table></figure></p>
+<p>上述两个方法关联的另外几个方法是 <code>_get_raw_xsrf_token</code> 和 <code>_decode_xsrf_token</code>。首次访问 <code>_get_raw_xsrf_token</code> 方法时，将尝试为当前用户请求生成 token（若已经生成，则直接从 cookie “_xsrf” 中获取），并赋值给 handler 的 <code>_raw_xsrf_token</code> 字段。<code>_decode_xsrf_token</code> 方法将 token 解析为 (version, token, timestamp) 元组返回（兼容版本 1 ，版本 1 中没有 version 和 timestamp 字段）。代码很简单，如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_get_raw_xsrf_token</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Read or generate the xsrf token in its raw form.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The raw_xsrf_token is a tuple containing:</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    * version: the version of the cookie from which this token was read,</span></span><br><span class="line"><span class="string">      or None if we generated a new token in this request.</span></span><br><span class="line"><span class="string">    * token: the raw token data; random (non-ascii) bytes.</span></span><br><span class="line"><span class="string">    * timestamp: the time this token was generated (will not be accurate</span></span><br><span class="line"><span class="string">      for version 1 cookies)</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> hasattr(self, <span class="string">'_raw_xsrf_token'</span>):</span><br><span class="line">        cookie = self.get_cookie(<span class="string">"_xsrf"</span>)</span><br><span class="line">        <span class="keyword">if</span> cookie:</span><br><span class="line">            version, token, timestamp = self._decode_xsrf_token(cookie)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            version, token, timestamp = <span class="literal">None</span>, <span class="literal">None</span>, <span class="literal">None</span></span><br><span class="line">        <span class="keyword">if</span> token <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            version = <span class="literal">None</span></span><br><span class="line">            token = os.urandom(<span class="number">16</span>)</span><br><span class="line">            timestamp = time.time()</span><br><span class="line">        self._raw_xsrf_token = (version, token, timestamp)</span><br><span class="line">    <span class="keyword">return</span> self._raw_xsrf_token</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_decode_xsrf_token</span><span class="params">(self, cookie)</span>:</span></span><br><span class="line">    <span class="string">"""Convert a cookie string into a the tuple form returned by</span></span><br><span class="line"><span class="string">    _get_raw_xsrf_token.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    m = _signed_value_version_re.match(utf8(cookie))</span><br><span class="line">    <span class="keyword">if</span> m:</span><br><span class="line">        version = int(m.group(<span class="number">1</span>))</span><br><span class="line">        <span class="keyword">if</span> version == <span class="number">2</span>:</span><br><span class="line">            _, mask, masked_token, timestamp = cookie.split(<span class="string">"|"</span>)</span><br><span class="line">            mask = binascii.a2b_hex(utf8(mask))</span><br><span class="line">            token = _websocket_mask(</span><br><span class="line">                mask, binascii.a2b_hex(utf8(masked_token)))</span><br><span class="line">            timestamp = int(timestamp)</span><br><span class="line">            <span class="keyword">return</span> version, token, timestamp</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># Treat unknown versions as not present instead of failing.</span></span><br><span class="line">            <span class="keyword">return</span> <span class="literal">None</span>, <span class="literal">None</span>, <span class="literal">None</span></span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        version = <span class="number">1</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            token = binascii.a2b_hex(utf8(cookie))</span><br><span class="line">        <span class="keyword">except</span> (binascii.Error, TypeError):</span><br><span class="line">            token = utf8(cookie)</span><br><span class="line">        <span class="comment"># We don't have a usable timestamp in older versions.</span></span><br><span class="line">        timestamp = int(time.time())</span><br><span class="line">        <span class="keyword">return</span> (version, token, timestamp)</span><br></pre></td></tr></table></figure>
+<h4 id="检查-xsrf-token"><a href="#检查-xsrf-token" class="headerlink" title="检查 xsrf_token"></a>检查 xsrf_token</h4><p>对 xsrf_token 的检查在 <code>_execute</code> 方法中委托 <code>check_xsrf_cookie</code> 方法进行，代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@gen.coroutine</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_execute</span><span class="params">(self, transforms, *args, **kwargs)</span>:</span></span><br><span class="line">	…………</span><br><span class="line">    <span class="comment"># If XSRF cookies are turned on, reject form submissions without</span></span><br><span class="line">    <span class="comment"># the proper cookie</span></span><br><span class="line">    <span class="keyword">if</span> self.request.method <span class="keyword">not</span> <span class="keyword">in</span> (<span class="string">"GET"</span>, <span class="string">"HEAD"</span>, <span class="string">"OPTIONS"</span>) <span class="keyword">and</span> \</span><br><span class="line">            self.application.settings.get(<span class="string">"xsrf_cookies"</span>):</span><br><span class="line">        self.check_xsrf_cookie()</span><br><span class="line">    …………</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">check_xsrf_cookie</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Verifies that the ``_xsrf`` cookie matches the ``_xsrf`` argument.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    To prevent cross-site request forgery, we set an ``_xsrf``</span></span><br><span class="line"><span class="string">    cookie and include the same value as a non-cookie</span></span><br><span class="line"><span class="string">    field with all ``POST`` requests. If the two do not match, we</span></span><br><span class="line"><span class="string">    reject the form submission as a potential forgery.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The ``_xsrf`` value may be set as either a form field named ``_xsrf``</span></span><br><span class="line"><span class="string">    or in a custom HTTP header named ``X-XSRFToken`` or ``X-CSRFToken``</span></span><br><span class="line"><span class="string">    (the latter is accepted for compatibility with Django).</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    See http://en.wikipedia.org/wiki/Cross-site_request_forgery</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Prior to release 1.1.1, this check was ignored if the HTTP header</span></span><br><span class="line"><span class="string">    ``X-Requested-With: XMLHTTPRequest`` was present.  This exception</span></span><br><span class="line"><span class="string">    has been shown to be insecure and has been removed.  For more</span></span><br><span class="line"><span class="string">    information please see</span></span><br><span class="line"><span class="string">    http://www.djangoproject.com/weblog/2011/feb/08/security/</span></span><br><span class="line"><span class="string">    http://weblog.rubyonrails.org/2011/2/8/csrf-protection-bypass-in-ruby-on-rails</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionchanged:: 3.2.2</span></span><br><span class="line"><span class="string">       Added support for cookie version 2.  Both versions 1 and 2 are</span></span><br><span class="line"><span class="string">       supported.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    token = (self.get_argument(<span class="string">"_xsrf"</span>, <span class="literal">None</span>) <span class="keyword">or</span></span><br><span class="line">             self.request.headers.get(<span class="string">"X-Xsrftoken"</span>) <span class="keyword">or</span></span><br><span class="line">             self.request.headers.get(<span class="string">"X-Csrftoken"</span>))</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> token:</span><br><span class="line">        <span class="keyword">raise</span> HTTPError(<span class="number">403</span>, <span class="string">"'_xsrf' argument missing from POST"</span>)</span><br><span class="line">    _, token, _ = self._decode_xsrf_token(token)</span><br><span class="line">    _, expected_token, _ = self._get_raw_xsrf_token()</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> _time_independent_equals(utf8(token), utf8(expected_token)):</span><br><span class="line">        <span class="keyword">raise</span> HTTPError(<span class="number">403</span>, <span class="string">"XSRF cookie does not match POST argument"</span>)</span><br></pre></td></tr></table></figure>
+<p><code>check_xsrf_cookie</code> 方法代码显示与 cookie 中的 token 进行比较的 token 来源于请求参数 <code>_xsrf</code> 或者 HTTP 头域（<code>X-Xsrftoken</code> 或者 <code>X-Csrftoken</code>）。目前仅比较 token 值，对其中的 timestamp 和 version 字段不做比较验证。</p>
+<p>由上可见，xsrf cookies 的生成仅与是否访问 <code>xsrf_token</code> 属性相关，要进行验证则需要为应用设置 <code>xsrf_cookies</code> 为 True。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/Secure-Cookies/" rel="tag"># Secure Cookies</a>
+            
+              <a href="/tags/XSRF/" rel="tag"># XSRF</a>
+            
+              <a href="/tags/CSRF/" rel="tag"># CSRF</a>
+            
+              <a href="/tags/跨站请求伪造/" rel="tag"># 跨站请求伪造</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2016/01/30/tornado.web_handle_exception/" rel="next" title="tornado.web.RequestHandler 异常处理">
+                  <i class="fa fa-chevron-left"></i> tornado.web.RequestHandler 异常处理
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2017/12/10/MongoDB-datatypes-storage/" rel="prev" title="MongoDB 数据类型及存储">
+                  MongoDB 数据类型及存储 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Secure-Cookies"><span class="nav-number">2.</span> <span class="nav-text">Secure Cookies</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#set-secure-cookie-方法"><span class="nav-number">2.1.</span> <span class="nav-text">set_secure_cookie 方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#get-secure-cookie-方法"><span class="nav-number">2.2.</span> <span class="nav-text">get_secure_cookie 方法</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#XSRF"><span class="nav-number">3.</span> <span class="nav-text">XSRF</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#生成-xsrf-token"><span class="nav-number">3.1.</span> <span class="nav-text">生成 xsrf_token</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#检查-xsrf-token"><span class="nav-number">3.2.</span> <span class="nav-text">检查 xsrf_token</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

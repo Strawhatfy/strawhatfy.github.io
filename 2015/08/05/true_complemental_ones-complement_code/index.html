@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="基础概念机器数与真值机器数（computer number）是将符号”数字化”的数，是数字在计算机中的二进制表示形式。机器数有2个特点：一是符号数字化，在计算机用一个数的最高位存放符号, 正数为0, 负数为1；二是其数的大小受机器字长的限制。比如在字长 8bit 的计算机中，+8 机器数就是 00001000，而 -8 的机器数则是 10001000。 不带符号的数是数的绝对值，在绝对值前加上表示">
+<meta name="keywords" content="机器数,真值,原码,反码,补码,同余,模运算,符号位,溢出">
+<meta property="og:type" content="article">
+<meta property="og:title" content="关于机器数的一些知识">
+<meta property="og:url" content="http://yoursite.com/2015/08/05/true_complemental_ones-complement_code/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="基础概念机器数与真值机器数（computer number）是将符号”数字化”的数，是数字在计算机中的二进制表示形式。机器数有2个特点：一是符号数字化，在计算机用一个数的最高位存放符号, 正数为0, 负数为1；二是其数的大小受机器字长的限制。比如在字长 8bit 的计算机中，+8 机器数就是 00001000，而 -8 的机器数则是 10001000。 不带符号的数是数的绝对值，在绝对值前加上表示">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.350Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="关于机器数的一些知识">
+<meta name="twitter:description" content="基础概念机器数与真值机器数（computer number）是将符号”数字化”的数，是数字在计算机中的二进制表示形式。机器数有2个特点：一是符号数字化，在计算机用一个数的最高位存放符号, 正数为0, 负数为1；二是其数的大小受机器字长的限制。比如在字长 8bit 的计算机中，+8 机器数就是 00001000，而 -8 的机器数则是 10001000。 不带符号的数是数的绝对值，在绝对值前加上表示">
+  <link rel="canonical" href="http://yoursite.com/2015/08/05/true_complemental_ones-complement_code/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>关于机器数的一些知识 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/08/05/true_complemental_ones-complement_code/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">关于机器数的一些知识
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-08-05 14:14:21" itemprop="dateCreated datePublished" datetime="2015-08-05T14:14:21+08:00">2015-08-05</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/编程基础/" itemprop="url" rel="index"><span itemprop="name">编程基础</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="基础概念"><a href="#基础概念" class="headerlink" title="基础概念"></a>基础概念</h4><h5 id="机器数与真值"><a href="#机器数与真值" class="headerlink" title="机器数与真值"></a>机器数与真值</h5><p><strong>机器数</strong>（computer number）是将符号”数字化”的数，是数字在计算机中的二进制表示形式。机器数有2个特点：一是符号数字化，在计算机用一个数的最高位存放符号, 正数为0, 负数为1；二是其数的大小受机器字长的限制。比如在字长 8bit 的计算机中，+8 机器数就是 00001000，而 -8 的机器数则是 10001000。</p>
+<p>不带符号的数是数的绝对值，在绝对值前加上表示正负的符号就成了符号数。直接用正号 “+” 和负号 “-” 来表示其正负的二进制数叫做符号数的<strong>真值</strong>。比如， 01101 和 11101 是两个机器数，而它们的真值分别为 +1101 和 -1101。</p>
+<p><em>根据小数点位置固定与否，机器数又可以分为定点数和浮点数。 通常，使用定点数表示整数，而用浮点数表示实数。后面我们讨论的是定点数，即有符号整数。</em></p>
+<h5 id="有符号整数的表示：原码、反码、补码"><a href="#有符号整数的表示：原码、反码、补码" class="headerlink" title="有符号整数的表示：原码、反码、补码"></a>有符号整数的表示：原码、反码、补码</h5><p><strong>注：只有有符号整数才存在不同的编码方式，无符号数没有原码、反码和补码一说。</strong></p>
+<p>下面以字长 8bit 的机器数来举例。</p>
+<h6 id="原码"><a href="#原码" class="headerlink" title="原码"></a>原码</h6><p>将真值中的 “+” 、“-” 分别用 1、0 代替就叫做数的原码形式，简称原码。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[+1]原 = 0000 0001</span><br><span class="line">[-1]原 = 1000 0001</span><br></pre></td></tr></table></figure>
+<h6 id="反码"><a href="#反码" class="headerlink" title="反码"></a>反码</h6><p>对正数来说，其反码和原码的相同。负数的反码是在其原码的基础上, 符号位不变，其余各个位取反。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[+1] = [00000001]原 = [00000001]反</span><br><span class="line">[-1] = [10000001]原 = [11111110]反</span><br></pre></td></tr></table></figure>
+<h6 id="补码"><a href="#补码" class="headerlink" title="补码"></a>补码</h6><p>对正数来说，其反码和原码的相同。负数的补码是在其原码的基础上, 符号位不变, 其余各位取反, 最后加1(也就是反码末位加 1)。</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">[+1] = [00000001]原 = [00000001]反 = [00000001]补</span><br><span class="line">[-1] = [10000001]原 = [11111110]反 = [11111111]补</span><br></pre></td></tr></table></figure>
+<p>综上所述，对于正整数而言，原码、反码、补码都一样，只有负整数原码、反码、补码表示不同。</p>
+<h4 id="计算机中有符号整数的存储"><a href="#计算机中有符号整数的存储" class="headerlink" title="计算机中有符号整数的存储"></a>计算机中有符号整数的存储</h4><p>我们都知道, 在数学上减一个数等于加上这个数的相反数，所以有符号整数的加减法运算都可以视为加法运算。这没有什么问题，但是对于二进制存储的有符号整数，由于 “符号位” 参与运算便会有一些问题：</p>
+<ol>
+<li>若使用原码计算，涉及到负整数时就必须对符号位做特殊处理，并且还有 +0 和 -0 的问题；</li>
+<li>若使用反码计算，符号位不需要特殊处理，但由于反码与原码的取值范围相同，所以也有 +0 和 -0 的问题；</li>
+<li>使用补码则没有上述问题，但是补码的取值范围与原码不同，补码表示的最小值没有对应的原码。</li>
+</ol>
+<p><strong>注：使用原码和反码存储数都会存在一个 +0 与 -0 的问题，比如 8bit 字长的有符号整数，[0000 0000]原 和 [1000 0000]原 都表示0，[0000 0000]反和[1111 1111]反 都表示0，虽然能够理解，但这实际上没有什么意义。用补码表示时，[0000 0000]补 表示 +0，没有 -0；[1111 1111]补 表示 -1， [1000 0000]补 表示 -128，可以多保存一个最小值，所以 32 位 int 类型, 可以表示范围是: [-2^31, 2^31-1]，用原码或者补码都只能表示 [-2^31 + 1, 2^31-1]。</strong></p>
+<p>在计算机中，加减法是基础运算，需要设计的足够简单。对于有符号整数，若让计算机执行加减法时还要去识别 “符号位” ，那么光基础电路至少就得设计两套，显然是复杂了。加上数字电路实现加法电路比减法电路要简单（不要问为什么，我已经还给大学老师了），所以在现代计算机中有符号整数是采用补码存储的（据说历史上曾经生产过使用反码存储的计算机）。<br><a id="more"></a><br><strong>注：后面的内容主要参考了 <a href="http://www.cnblogs.com/zhangziqiu/archive/2011/03/30/computercode.html" target="_blank" rel="noopener">《原码, 反码, 补码详解》</a>一文，非常感谢原作者的论证，受益匪浅。</strong></p>
+<p>为什么要使用补码，其原理涉及到一些数学知识：反码、补码引入的数学基础是模运算 和 “同余”。</p>
+<p>正数的模运算很简单，负数的模运算我们不常用，反正我是不知道怎么算的。负数的模运算怎么算，需要从模运算的定义来看：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">X mod Y = X - Y * floor(X/Y)</span><br></pre></td></tr></table></figure>
+<p>举例来说：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">3 mod 5 = 3 - 5 * floor(3/5) = 3 - 5 * floor(0.6) = 3 - 5 * 0 = 3</span><br><span class="line">-2 mod 5 = -2 - 5 * floor(-2/5) = -2 - 5 * floor(-0.4) = -2 - 5 * (-1) = 3</span><br></pre></td></tr></table></figure>
+<p>两个整数 a，b ，若它们除以整数 m 所得的余数相等，则称 a，b 对模 m 同余，a、b 互为补数。记作：a ≡ b (mod m)，读着：a 与 b 对模 m 同余。比如：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">3 mod 5 = 3</span><br><span class="line">-2 mod 5 = 3</span><br></pre></td></tr></table></figure>
+<p>所以 3 与 -2 对模 5 同余。</p>
+<p>好了，我们已经知道如何进行模运算和 “同余” 的定义了，接下来我们来看看怎么将加一个负整数转为加一个正整数。</p>
+<p>这涉及到余数的2个定理：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">反身性：a ≡ a (mod m)</span><br><span class="line">同余式相加：若 a ≡ b(mod m)，c ≡ d(mod m)，则a±c ≡ b±d (mod m)</span><br></pre></td></tr></table></figure>
+<p>结合同余的定义，有：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">4 ≡ 4(mod 5)</span><br><span class="line">-2 ≡ 3(mod 5)</span><br><span class="line">4 - 2 ≡ 4 + 3(mod 5)</span><br></pre></td></tr></table></figure>
+<p>4 - 2 与 4 + 3 对模 5 同余，换句话说，选择一个 <strong>“合适的模数”</strong> ，我们就能把加一个负整数（减法运算）变成加一个正整数（加法运算）。数学支持有了，现在我们来看看二进制表示的有符号整数：</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">4 - 2 = 4 + (-2) = [0000 0100]原 + [1000 0010]原 = [0000 0100]反 + [1111 1101]反</span><br></pre></td></tr></table></figure>
+<p>对比一下上面 4 - 2 ≡ 4 + 3(mod 5)，很容易联想到 “[1111 1101]反 和 -2 对模 X 同余” 的结论。如果把 [1111 1101]反 当作原码（正整数的反码与原码相同就不考虑了），则 [1111 1101]原 = -125，不考虑符号位的话是 125，那么 X=127，即:</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">-2 mod 127 = 125</span><br><span class="line">125 mod 127 = 125</span><br><span class="line">-2 ≡ 125(mod 127)</span><br></pre></td></tr></table></figure>
+<p>则 4 - 2 与 4 + 125 对模 127 同余，而它们的余数正是我们需要的计算结果。让有符号整数符号位参与运算溢出以后的结果便是 4 + 125 模 127 的结果（余数），即 4 - 2 = 溢出（4 + 125）。</p>
+<p>可以看出，“一个数的反码若不考虑符号位” 其实就是这个数对 “一个模” 的补数，这个模就是字长所能表示的最大值。而用补码表示实际上就是把模变成了字长所能表示的最大值加1。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/机器数/" rel="tag"># 机器数</a>
+            
+              <a href="/tags/真值/" rel="tag"># 真值</a>
+            
+              <a href="/tags/原码/" rel="tag"># 原码</a>
+            
+              <a href="/tags/反码/" rel="tag"># 反码</a>
+            
+              <a href="/tags/补码/" rel="tag"># 补码</a>
+            
+              <a href="/tags/同余/" rel="tag"># 同余</a>
+            
+              <a href="/tags/模运算/" rel="tag"># 模运算</a>
+            
+              <a href="/tags/符号位/" rel="tag"># 符号位</a>
+            
+              <a href="/tags/溢出/" rel="tag"># 溢出</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/08/03/nat-napt/" rel="next" title="NAT 与 NAPT">
+                  <i class="fa fa-chevron-left"></i> NAT 与 NAPT
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/09/27/tornado.iostream/" rel="prev" title="tornado.iostream 模块解析">
+                  tornado.iostream 模块解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#基础概念"><span class="nav-number">1.</span> <span class="nav-text">基础概念</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#机器数与真值"><span class="nav-number">1.1.</span> <span class="nav-text">机器数与真值</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#有符号整数的表示：原码、反码、补码"><span class="nav-number">1.2.</span> <span class="nav-text">有符号整数的表示：原码、反码、补码</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#原码"><span class="nav-number">1.2.1.</span> <span class="nav-text">原码</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#反码"><span class="nav-number">1.2.2.</span> <span class="nav-text">反码</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#补码"><span class="nav-number">1.2.3.</span> <span class="nav-text">补码</span></a></li></ol></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#计算机中有符号整数的存储"><span class="nav-number">2.</span> <span class="nav-text">计算机中有符号整数的存储</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言HTTPServer 是 HTTP 协议的 TCPServer 子类实现，HTTPServer 覆写了 handle_stream 方法用于处理 HTTP 协议。与 TCPServer 一样，可以有三种使用模式，源码注释中写的很详细，在 TCPServer 源码解析的部分也已经详细讨论过，这里就不再赘述。 来看看一个简单的 HTTPServer 使用示例： 123456789101112131">
+<meta name="keywords" content="HTTPServer,HTTPServerConnectionDelegate,HTTPMessageDelegate,HTTPConnection,HTTP1ServerConnection,HTTP1Connection">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.httpserver 模块解析">
+<meta property="og:url" content="http://yoursite.com/2015/10/21/tornado.httpserver/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言HTTPServer 是 HTTP 协议的 TCPServer 子类实现，HTTPServer 覆写了 handle_stream 方法用于处理 HTTP 协议。与 TCPServer 一样，可以有三种使用模式，源码注释中写的很详细，在 TCPServer 源码解析的部分也已经详细讨论过，这里就不再赘述。 来看看一个简单的 HTTPServer 使用示例： 123456789101112131">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.341Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.httpserver 模块解析">
+<meta name="twitter:description" content="引言HTTPServer 是 HTTP 协议的 TCPServer 子类实现，HTTPServer 覆写了 handle_stream 方法用于处理 HTTP 协议。与 TCPServer 一样，可以有三种使用模式，源码注释中写的很详细，在 TCPServer 源码解析的部分也已经详细讨论过，这里就不再赘述。 来看看一个简单的 HTTPServer 使用示例： 123456789101112131">
+  <link rel="canonical" href="http://yoursite.com/2015/10/21/tornado.httpserver/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.httpserver 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/10/21/tornado.httpserver/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.httpserver 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-10-21 17:25:01" itemprop="dateCreated datePublished" datetime="2015-10-21T17:25:01+08:00">2015-10-21</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p><code>HTTPServer</code> 是 HTTP 协议的 <code>TCPServer</code> 子类实现，<code>HTTPServer</code> 覆写了 <code>handle_stream</code> 方法用于处理 HTTP 协议。与 <code>TCPServer</code> 一样，可以有三种使用模式，源码注释中写的很详细，在 <code>TCPServer</code> 源码解析的部分也已经详细讨论过，这里就不再赘述。</p>
+<p>来看看一个简单的 <code>HTTPServer</code> 使用示例：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> tornado.httpserver</span><br><span class="line"><span class="keyword">import</span> tornado.ioloop</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">handle_request</span><span class="params">(request)</span>:</span></span><br><span class="line">   message = <span class="string">"You requested %s\n"</span> % request.uri</span><br><span class="line">   request.connection.write_headers(</span><br><span class="line">       httputil.ResponseStartLine(<span class="string">'HTTP/1.1'</span>, <span class="number">200</span>, <span class="string">'OK'</span>),</span><br><span class="line">       &#123;<span class="string">"Content-Length"</span>: str(len(message))&#125;)</span><br><span class="line">   request.connection.write(message)</span><br><span class="line">   request.connection.finish()</span><br><span class="line"></span><br><span class="line">http_server = tornado.httpserver.HTTPServer(handle_request)</span><br><span class="line">http_server.listen(<span class="number">8888</span>)</span><br><span class="line">tornado.ioloop.IOLoop.instance().start()</span><br></pre></td></tr></table></figure>
+<p>示例代码实现的是一个简单的 echo 服务器，<code>HTTPServer</code> 接受的是一个以 <code>HTTPServerRequest</code> 作为参数的函数 <code>handle_request</code>。</p>
+<p><code>HTTPServerRequest</code> 的 <code>connection</code> 字段是一个 <code>HTTPConnection</code> 实例对象，应用代码通过使用 <code>HTTPConnection</code> 的方法响应客户端（write response ）。</p>
+<p><code>HTTPServer</code> 支持 HTTP keep-alive 连接和 <code>X-Real-Ip</code>/<code>X-Forwarded-For</code> HTTP Heads。</p>
+<p><strong><code>HTTPServer</code> 实际上还接受 <code>HTTPServerConnectionDelegate</code> 实例作为请求处理的委托对象</strong>。如下代码把对请求的处理委托给 <code>tornado.web.Application</code> 对象处理：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">application = web.Application([</span><br><span class="line">    (<span class="string">r"/"</span>, MainPageHandler),</span><br><span class="line">])</span><br><span class="line">http_server = httpserver.HTTPServer(application)</span><br><span class="line">http_server.listen(<span class="number">8080</span>)</span><br><span class="line">ioloop.IOLoop.instance().start()</span><br></pre></td></tr></table></figure>
+<p><code>Application</code> 和 <code>HTTPServer</code> 都是 <code>HTTPServerConnectionDelegate</code> 的子类，<code>HTTPServer</code> 会委托 <code>Application</code> 完成对请求的处理。<strong>这是大多数情况下我们使用 Tornado 的方式</strong>。<br><a id="more"></a></p>
+<h3 id="HTTPServer"><a href="#HTTPServer" class="headerlink" title="HTTPServer"></a>HTTPServer</h3><p>Tornado 中与 HTTP 处理相关的功能被定义在 <code>tornado.httpserver</code>、<code>tornado.httputil</code>、<code>tornado.http1connection</code>。<code>tornado.httpserver</code> 主要定义的是 <code>HTTPServer</code> ，<code>tornado.httputil</code> 定义了通用的 HTTP 处理接口、功能类和函数，<code>tornado.http1connection</code> 是 针对 HTTP/1.x 的实现模块。</p>
+<p>与 <code>HTTPServer</code> 实现紧密相关的接口和实现主要有下面这些：</p>
+<ol>
+<li><p><code>tornado.httputil.HTTPServerConnectionDelegate</code> 接口定义了 Web 服务器处理请求的接口，负责启动请求处理和处理完成后的清理工作。<code>tornado.httpserver.HTTPServer</code> 和 <code>tornado.web.Application</code> 是该接口的具体实现类型。<strong><em>通常情况下我们都是结合二者使用 Tornado, <code>HTTPServer</code> 将请求封装好后委托给 <code>Application</code>， <code>Application</code> 按照请求 path 分发请求到目标 Handler，然后由 Handler 负责响应请求</em></strong>。</p>
+</li>
+<li><p><code>tornado.httputil.HTTPMessageDelegate</code> 接口定义了具体的 HTTP 数据（作为服务端时的请求数据，或者作为客户端时的响应数据）处理接口，在对 HTTP 数据解析的一定阶段触发相应方法， 对解析过程进行拦截处理。<strong>从设计的角度来看，这个接口实际上就是分离了对 HTTP 协议的解析逻辑和其他逻辑（包括业务逻辑），所有与 HTTP 协议解析无关的逻辑都交由该接口处理（注：表达可能不够准确），比如提供 xheaders 支持（<code>tornado.httpserver._ServerRequestAdapter</code>），解压缩 Gzip 数据（<code>tornado.http1connection._GzipMessageDelegate</code>），分发请求给相应的 Handler（<code>tornado.web._RequestDispatcher</code>）。</strong></p>
+</li>
+<li><p><code>tornado.httputil.HTTPConnection</code> 接口定义了应用程序响应 HTTP 请求的接口，包括对 HTTP Header 和 Body 的 write。<code>tornado.http1connection.HTTP1Connection</code> 是该接口的实现类，同时也是整个 HTTP/1.x 数据解析的核心实现，<strong><em>封装了对 HTTP 请求(作为服务端)和响应(作为客户端)数据的解析，并在解析的相应阶段触发 <code>HTTPMessageDelegate</code> 对应的方法</em></strong>。</p>
+</li>
+</ol>
+<h4 id="HTTPServerConnectionDelegate-与-HTTPServer"><a href="#HTTPServerConnectionDelegate-与-HTTPServer" class="headerlink" title="HTTPServerConnectionDelegate 与 HTTPServer"></a>HTTPServerConnectionDelegate 与 HTTPServer</h4><p><code>TCPServer</code> 负责监听端口，接收来自客户端的连接请求，并将请求关联的 socket 封装成 <code>IOStream</code> 传递给抽象方法 <code>handle_stream</code> 进行处理。<code>HTTPServer</code> 覆写了 <code>handle_stream</code> 方法，将 <code>IOStream</code> 封装成 HTTP 请求相关的对象，并委托 <code>HTTPServerConnectionDelegate</code> 实例对象进行处理。</p>
+<p><code>HTTPServerConnectionDelegate</code> 定义了 <code>start_request</code> 和 <code>on_close</code> 两个方法作为 HTTP 请求的入口和出口，分别在开始处理 HTTP 请求和连接关闭时调用。接口定义和方法签名如下代码所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">HTTPServerConnectionDelegate</span><span class="params">(object)</span>:</span></span><br><span class="line">    <span class="string">"""Implement this interface to handle requests from `.HTTPServer`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionadded:: 4.0</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">start_request</span><span class="params">(self, server_conn, request_conn)</span>:</span></span><br><span class="line">        <span class="string">"""This method is called by the server when a new request has started.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        :arg server_conn: is an opaque object representing the long-lived</span></span><br><span class="line"><span class="string">            (e.g. tcp-level) connection.</span></span><br><span class="line"><span class="string">        :arg request_conn: is a `.HTTPConnection` object for a single</span></span><br><span class="line"><span class="string">            request/response exchange.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        This method should return a `.HTTPMessageDelegate`.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">raise</span> NotImplementedError()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_close</span><span class="params">(self, server_conn)</span>:</span></span><br><span class="line">        <span class="string">"""This method is called when a connection has been closed.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        :arg server_conn: is a server connection that has previously been</span></span><br><span class="line"><span class="string">            passed to ``start_request``.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">pass</span></span><br></pre></td></tr></table></figure>
+<p><code>start_request(self, server_conn, request_conn)</code> 方法签名接收两个参数，<strong>server_conn</strong> 参数是一个不透明（注：我理解为在该接口定义时不确定该参数的类型，参数类型在具体实现时决定。有点类似标记接口 MarkInterface 的意思。）的持久化连接对象，<strong>request_conn</strong> 参数是一个用于一次 HTTP 请求/响应的 <code>HTTPConnection</code> 对象。该方法返回一个 <code>HTTPMessageDelegate</code> 接口实例对象，以便在后续供 <code>HTTP1Connection</code> 使用。</p>
+<p><code>on_close(self, server_conn)</code> 方法的参数 <strong> server_conn </strong> 应与调用 <code>start_request</code> 方法时相同。</p>
+<p><code>HTTPServer</code> 的代码很简单，基本上只是一些控制逻辑，具体的实现代码都委托给其他对象来处理了，下面是其完整的代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">HTTPServer</span><span class="params">(TCPServer, httputil.HTTPServerConnectionDelegate)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, request_callback, no_keep_alive=False, io_loop=None,</span></span></span><br><span class="line"><span class="function"><span class="params">                 xheaders=False, ssl_options=None, protocol=None,</span></span></span><br><span class="line"><span class="function"><span class="params">                 decompress_request=False,</span></span></span><br><span class="line"><span class="function"><span class="params">                 chunk_size=None, max_header_size=None,</span></span></span><br><span class="line"><span class="function"><span class="params">                 idle_connection_timeout=None, body_timeout=None,</span></span></span><br><span class="line"><span class="function"><span class="params">                 max_body_size=None, max_buffer_size=None)</span>:</span></span><br><span class="line">        self.request_callback = request_callback</span><br><span class="line">        self.no_keep_alive = no_keep_alive</span><br><span class="line">        self.xheaders = xheaders</span><br><span class="line">        self.protocol = protocol</span><br><span class="line">        self.conn_params = HTTP1ConnectionParameters(</span><br><span class="line">            decompress=decompress_request,</span><br><span class="line">            chunk_size=chunk_size,</span><br><span class="line">            max_header_size=max_header_size,</span><br><span class="line">            header_timeout=idle_connection_timeout <span class="keyword">or</span> <span class="number">3600</span>,</span><br><span class="line">            max_body_size=max_body_size,</span><br><span class="line">            body_timeout=body_timeout)</span><br><span class="line">        TCPServer.__init__(self, io_loop=io_loop, ssl_options=ssl_options,</span><br><span class="line">                           max_buffer_size=max_buffer_size,</span><br><span class="line">                           read_chunk_size=chunk_size)</span><br><span class="line">        self._connections = set()</span><br><span class="line"></span><br><span class="line"><span class="meta">    @gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">close_all_connections</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">while</span> self._connections:</span><br><span class="line">            <span class="comment"># Peek at an arbitrary element of the set</span></span><br><span class="line">            conn = next(iter(self._connections))</span><br><span class="line">            <span class="keyword">yield</span> conn.close()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">handle_stream</span><span class="params">(self, stream, address)</span>:</span></span><br><span class="line">        <span class="comment"># 请求的上下文，以属性字段的形式封装请求关联的数据</span></span><br><span class="line">        context = _HTTPRequestContext(stream, address,</span><br><span class="line">                                      self.protocol)</span><br><span class="line">        <span class="comment"># 支持 HTTP/1.x 的服务端持久化的连接对象， 作为 HTTPServerConnectionDelegate.start_request</span></span><br><span class="line">        <span class="comment"># 方法的 server_conn 实参。</span></span><br><span class="line">        conn = HTTP1ServerConnection(</span><br><span class="line">            stream, self.conn_params, context)</span><br><span class="line">        self._connections.add(conn)</span><br><span class="line">        conn.start_serving(self)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">start_request</span><span class="params">(self, server_conn, request_conn)</span>:</span></span><br><span class="line">        <span class="comment"># request_callback 可能是以 `HTTPServerRequest` 对象作为参数的函数，也</span></span><br><span class="line">        <span class="comment"># 可能是一个 `HTTPServerConnectionDelegate` 实例。`_ServerRequestAdapter` 需</span></span><br><span class="line">        <span class="comment"># 要正确处理这两种类型的对象，以适配 `HTTPServerConnectionDelegate`。</span></span><br><span class="line">        <span class="keyword">return</span> _ServerRequestAdapter(self, request_conn)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_close</span><span class="params">(self, server_conn)</span>:</span></span><br><span class="line">        self._connections.remove(server_conn)</span><br></pre></td></tr></table></figure>
+<p>如上面 <code>handle_stream</code> 方法的所示，具体的 HTTP 请求处理交由 <code>_HTTPRequestContext</code>、 <code>HTTP1ServerConnection</code> 等来完成。但是 <code>HTTPServer</code> 实现了 <code>HTTPServerConnectionDelegate</code> 接口，同时也接受 <code>request_callback</code> 作为构造函数参数，所以其自身可以作为 <code>HTTPServerConnectionDelegate</code> 传递给 <code>HTTP1ServerConnection</code> 来处理请求。而委托给具体 <code>request_callback</code> 的逻辑则由 <code>_ServerRequestAdapter</code> 来完成。</p>
+<h4 id="HTTPMessageDelegate-与-ServerRequestAdapter-GzipMessageDelegate-RequestDispatcher"><a href="#HTTPMessageDelegate-与-ServerRequestAdapter-GzipMessageDelegate-RequestDispatcher" class="headerlink" title="HTTPMessageDelegate 与 _ServerRequestAdapter/_GzipMessageDelegate/_RequestDispatcher"></a>HTTPMessageDelegate 与 _ServerRequestAdapter/_GzipMessageDelegate/_RequestDispatcher</h4><p><code>HTTPMessageDelegate</code> 通过定义请求处理流程各个阶段可调用的方法而分离了 HTTP 协议的解析逻辑和其他逻辑，这些方法包括：<code>headers_received</code>、<code>data_received</code>、<code>finish</code> 和 <code>on_connection_close</code>。从方法名称大体就能推测出调用阶段，具体的定义，这里就不介绍了，直接参考源码即可。</p>
+<h5 id="ServerRequestAdapter"><a href="#ServerRequestAdapter" class="headerlink" title="_ServerRequestAdapter"></a>_ServerRequestAdapter</h5><p>由于 <code>HTTPServer.request_callback</code> 可能是以 <code>HTTPServerRequest</code> 对象作为参数的函数，也可能是一个 <code>HTTPServerConnectionDelegate</code> 实例。所以 <code>_ServerRequestAdapter</code> 需要正确处理这两种类型的对象以适配 <code>HTTPMessageDelegate</code>：</p>
+<ol>
+<li><p>若 <code>HTTPServer.request_callback</code> 是 <code>HTTPServerConnectionDelegate</code> 实例则将请求处理委托给该实例（调用 start_request 方法）返回的 <code>HTTPMessageDelegate</code> 对象；</p>
+</li>
+<li><p>若 <code>HTTPServer.request_callback</code> 是以<code>HTTPServerRequest</code> 对象为参数的函数，则 <code>_ServerRequestAdapter</code> 要负责处理请求数据，最终将请求数据封装成 <code>HTTPServerRequest</code> 对象交由 <code>HTTPServer.request_callback</code> 处理。</p>
+</li>
+</ol>
+<p>顺便说一下， <code>_ServerRequestAdapter</code> 也负责在每次请求时提供对 <code>xheaders</code> 的支持。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">_ServerRequestAdapter</span><span class="params">(httputil.HTTPMessageDelegate)</span>:</span></span><br><span class="line">    <span class="string">"""Adapts the `HTTPMessageDelegate` interface to the interface expected</span></span><br><span class="line"><span class="string">    by our clients.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, server, connection)</span>:</span></span><br><span class="line">        self.server = server</span><br><span class="line">        self.connection = connection</span><br><span class="line">        self.request = <span class="literal">None</span></span><br><span class="line">        <span class="comment"># 如果 server.request_callback 是一个 HTTPServerConnectionDelegate 实例，</span></span><br><span class="line">        <span class="comment"># 比如 tornado.web.Application 实例，那就委托给它处理请求，否则就自己处理。</span></span><br><span class="line">        <span class="keyword">if</span> isinstance(server.request_callback,</span><br><span class="line">                      httputil.HTTPServerConnectionDelegate):</span><br><span class="line">            self.delegate = server.request_callback.start_request(connection)</span><br><span class="line">            self._chunks = <span class="literal">None</span></span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.delegate = <span class="literal">None</span></span><br><span class="line">            self._chunks = []</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">headers_received</span><span class="params">(self, start_line, headers)</span>:</span></span><br><span class="line">        <span class="comment"># 对这次请求应用 xheaders 支持</span></span><br><span class="line">        <span class="keyword">if</span> self.server.xheaders:</span><br><span class="line">            self.connection.context._apply_xheaders(headers)</span><br><span class="line">        <span class="keyword">if</span> self.delegate <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># 初始化一个 HTTPServerRequest 实例，HTTP 数据解析完成后将为该对象的 body 字段赋值。</span></span><br><span class="line">            self.request = httputil.HTTPServerRequest(</span><br><span class="line">                connection=self.connection, start_line=start_line,</span><br><span class="line">                headers=headers)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">return</span> self.delegate.headers_received(start_line, headers)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">data_received</span><span class="params">(self, chunk)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.delegate <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            self._chunks.append(chunk)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">return</span> self.delegate.data_received(chunk)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.delegate <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># 为 body 字段赋值，并解析成 key/value 的形式，对上传的文件也采用这种方式（value 的类型</span></span><br><span class="line">            <span class="comment"># 为 HTTPFile，由于有 max_body_size 和 max_buffer_szie 的限制，这里倒是不用担心文件</span></span><br><span class="line">            <span class="comment"># 过大的问题）。</span></span><br><span class="line">            self.request.body = <span class="string">b''</span>.join(self._chunks)</span><br><span class="line">            self.request._parse_body()</span><br><span class="line">            self.server.request_callback(self.request)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.delegate.finish()</span><br><span class="line">        self._cleanup()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_connection_close</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self.delegate <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            self._chunks = <span class="literal">None</span></span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.delegate.on_connection_close()</span><br><span class="line">        self._cleanup()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">_cleanup</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="comment"># 请求处理正常结束或者连接关闭时进行一些清理工作，如有必要取消对 xheaders 的支持。</span></span><br><span class="line">        <span class="keyword">if</span> self.server.xheaders:</span><br><span class="line">            self.connection.context._unapply_xheaders()</span><br></pre></td></tr></table></figure>
+<h5 id="GzipMessageDelegate"><a href="#GzipMessageDelegate" class="headerlink" title="_GzipMessageDelegate"></a>_GzipMessageDelegate</h5><p><code>_GzipMessageDelegate</code> 是一个典型的 Decorator Pattern 应用，专门用于支持 Content-Encoding: gzip。它装饰一个 <code>HTTPMessageDelegate</code> 实例对象，为其提供 gzip 的解压缩支持。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">_GzipMessageDelegate</span><span class="params">(httputil.HTTPMessageDelegate)</span>:</span></span><br><span class="line">    <span class="string">"""Wraps an `HTTPMessageDelegate` to decode ``Content-Encoding: gzip``.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, delegate, chunk_size)</span>:</span></span><br><span class="line">        self._delegate = delegate</span><br><span class="line">        self._chunk_size = chunk_size</span><br><span class="line">        self._decompressor = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">headers_received</span><span class="params">(self, start_line, headers)</span>:</span></span><br><span class="line">        <span class="comment"># 若是 gzip 数据，则提供 GzipDecompressor 实例用于 body 的解压缩。</span></span><br><span class="line">        <span class="comment"># 并删除 Content-Encoding 报文头，用 X-Consumed-Content-Encoding 来代替。</span></span><br><span class="line">        <span class="keyword">if</span> headers.get(<span class="string">"Content-Encoding"</span>) == <span class="string">"gzip"</span>:</span><br><span class="line">            self._decompressor = GzipDecompressor()</span><br><span class="line">            <span class="comment"># Downstream delegates will only see uncompressed data,</span></span><br><span class="line">            <span class="comment"># so rename the content-encoding header.</span></span><br><span class="line">            <span class="comment"># (but note that curl_httpclient doesn't do this).</span></span><br><span class="line">            headers.add(<span class="string">"X-Consumed-Content-Encoding"</span>,</span><br><span class="line">                        headers[<span class="string">"Content-Encoding"</span>])</span><br><span class="line">            <span class="keyword">del</span> headers[<span class="string">"Content-Encoding"</span>]</span><br><span class="line">        <span class="keyword">return</span> self._delegate.headers_received(start_line, headers)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">data_received</span><span class="params">(self, chunk)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self._decompressor:</span><br><span class="line">            compressed_data = chunk</span><br><span class="line">            <span class="keyword">while</span> compressed_data:</span><br><span class="line">                decompressed = self._decompressor.decompress(</span><br><span class="line">                    compressed_data, self._chunk_size)</span><br><span class="line">                <span class="keyword">if</span> decompressed:</span><br><span class="line">                    <span class="keyword">yield</span> gen.maybe_future(</span><br><span class="line">                        self._delegate.data_received(decompressed))</span><br><span class="line">                compressed_data = self._decompressor.unconsumed_tail</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">yield</span> gen.maybe_future(self._delegate.data_received(chunk))</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> self._decompressor <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            tail = self._decompressor.flush()</span><br><span class="line">            <span class="keyword">if</span> tail:</span><br><span class="line">                <span class="comment"># I believe the tail will always be empty (i.e.</span></span><br><span class="line">                <span class="comment"># decompress will return all it can).  The purpose</span></span><br><span class="line">                <span class="comment"># of the flush call is to detect errors such</span></span><br><span class="line">                <span class="comment"># as truncated input.  But in case it ever returns</span></span><br><span class="line">                <span class="comment"># anything, treat it as an extra chunk</span></span><br><span class="line">                self._delegate.data_received(tail)</span><br><span class="line">        <span class="keyword">return</span> self._delegate.finish()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_connection_close</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> self._delegate.on_connection_close()</span><br></pre></td></tr></table></figure>
+<p><code>_GzipMessageDelegate</code> 代码不复杂，解压缩的工作是由 <code>tonrado.util.GzipDecompressor</code> 委托 <code>zlib.decompressobj</code> 完成。</p>
+<h5 id="RequestDispatcher"><a href="#RequestDispatcher" class="headerlink" title="_RequestDispatcher"></a>_RequestDispatcher</h5><p><code>_RequestDispatcher</code> 定义在 <code>tornado.web</code> 模块中，为 <code>Applioation</code> 适配 <code>HTTPServerConnectionDelegate</code> 接口，以完成根据请求的 path 分发请求到 handler。其实现并不复杂，后续会在分析 <code>Application</code> 时介绍详细的实现。</p>
+<h4 id="HTTPConnection-与-HTTP1Connection-HTTP1ServerConnection"><a href="#HTTPConnection-与-HTTP1Connection-HTTP1ServerConnection" class="headerlink" title="HTTPConnection 与 HTTP1Connection/HTTP1ServerConnection[*]"></a>HTTPConnection 与 HTTP1Connection/HTTP1ServerConnection[*]</h4><p><code>HTTPConnection</code> 是 HTTP 响应的接口，应用通过该接口 write headers/body 信息。<code>HTTP1Connection</code> 是 HTTP/1.x 协议的 <code>HTTPConnection</code> 实现，提供了 HTTP 请求的解析和响应功能，可单独被客户端(比如 <code>tornado.simple_httpclient.SimpleAsyncHTTPClient</code>)使用，也可通过 <code>HTTP1ServerConnection</code> 被服务器(比如 <code>HTTPServer</code>)使用。</p>
+<p>由于 <code>HTTP1Connection</code> 是对 HTTP/1.x 协议的实现，其代码涉及大量的协议数据格式解析，对深入理解 HTTP 非常有价值，这里主要是分析 Tornado 处理 HTTP 请求的流程，对协议的关注将放到相关的文章中详细介绍。</p>
+<p><code>HTTP1ServerConnection</code> 支持持久连接，在同一个连接上处理多个 HTTP 请求。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">HTTP1ServerConnection</span><span class="params">(object)</span>:</span></span><br><span class="line">    <span class="string">"""An HTTP/1.x server."""</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, stream, params=None, context=None)</span>:</span></span><br><span class="line">        <span class="string">"""</span></span><br><span class="line"><span class="string">        :arg stream: an `.IOStream`</span></span><br><span class="line"><span class="string">        :arg params: a `.HTTP1ConnectionParameters` or None</span></span><br><span class="line"><span class="string">        :arg context: an opaque application-defined object that is accessible</span></span><br><span class="line"><span class="string">            as ``connection.context``</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        self.stream = stream</span><br><span class="line">        <span class="keyword">if</span> params <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            params = HTTP1ConnectionParameters()</span><br><span class="line">        self.params = params</span><br><span class="line">        self.context = context</span><br><span class="line">        self._serving_future = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line"><span class="meta">    @gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">close</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="string">"""Closes the connection.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        Returns a `.Future` that resolves after the serving loop has exited.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        self.stream.close()</span><br><span class="line">        <span class="comment"># Block until the serving loop is done, but ignore any exceptions</span></span><br><span class="line">        <span class="comment"># (start_serving is already responsible for logging them).</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            <span class="keyword">yield</span> self._serving_future</span><br><span class="line">        <span class="keyword">except</span> Exception:</span><br><span class="line">            <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">start_serving</span><span class="params">(self, delegate)</span>:</span></span><br><span class="line">        <span class="string">"""Starts serving requests on this connection.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        :arg delegate: a `.HTTPServerConnectionDelegate`</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">assert</span> isinstance(delegate, httputil.HTTPServerConnectionDelegate)</span><br><span class="line">        self._serving_future = self._server_request_loop(delegate)</span><br><span class="line">        <span class="comment"># Register the future on the IOLoop so its errors get logged.</span></span><br><span class="line">        self.stream.io_loop.add_future(self._serving_future,</span><br><span class="line">                                       <span class="keyword">lambda</span> f: f.result())</span><br><span class="line"></span><br><span class="line"><span class="meta">    @gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">_server_request_loop</span><span class="params">(self, delegate)</span>:</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">                conn = HTTP1Connection(self.stream, <span class="literal">False</span>,</span><br><span class="line">                                       self.params, self.context)</span><br><span class="line">                request_delegate = delegate.start_request(self, conn)</span><br><span class="line">                <span class="keyword">try</span>:</span><br><span class="line">                    <span class="comment"># 解析 HTTP 数据，解析的结果交由 request_delegate 处理。通常 request_delegate</span></span><br><span class="line">                    <span class="comment"># 会将解析结果保存到 HTTPServerRequest 中，参见 _ServerRequestAdapter 实现。</span></span><br><span class="line">                    ret = <span class="keyword">yield</span> conn.read_response(request_delegate)</span><br><span class="line">                <span class="keyword">except</span> (iostream.StreamClosedError,</span><br><span class="line">                        iostream.UnsatisfiableReadError):</span><br><span class="line">                    <span class="comment"># 这两种异常由底层 IOStream 引发，发生时 IOStream 会自动关闭（包括关联的 fd） 并 logged。</span></span><br><span class="line">                    <span class="comment"># 若是其他异常，则需要调用 conn.close() 以关闭 IOStream。</span></span><br><span class="line">                    <span class="keyword">return</span></span><br><span class="line">                <span class="keyword">except</span> _QuietException:</span><br><span class="line">                    <span class="comment"># This exception was already logged.</span></span><br><span class="line">                    <span class="comment">#</span></span><br><span class="line">                    <span class="comment"># HTTP1Connection 中发生异常时由 _ExceptionLoggingContext 捕获并 logged（详细异常），</span></span><br><span class="line">                    <span class="comment"># 然后 _ExceptionLoggingContext 抛出 _QuietException 异常。</span></span><br><span class="line">                    conn.close()</span><br><span class="line">                    <span class="keyword">return</span></span><br><span class="line">                <span class="keyword">except</span> Exception:</span><br><span class="line">                    gen_log.error(<span class="string">"Uncaught exception"</span>, exc_info=<span class="literal">True</span>)</span><br><span class="line">                    conn.close()</span><br><span class="line">                    <span class="keyword">return</span></span><br><span class="line">                <span class="comment"># read_response 方法返回 True 表示此次请求正常处理完成，继续处理下一个请求：</span></span><br><span class="line">                <span class="comment">#   1. keep-alive 时，等待下一次 read_response 完成；</span></span><br><span class="line">                <span class="comment">#   2. 非 keep-alive 时，会抛出 StreamClosedError 终止循环；</span></span><br><span class="line">                <span class="comment"># 返回 False 则表示处理请求时发生了异常无法再继续处理下一个请求，立即终止循环是最优的选择而不是通过下</span></span><br><span class="line">                <span class="comment"># 一次抛出异常来终止。</span></span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">not</span> ret:</span><br><span class="line">                    <span class="keyword">return</span></span><br><span class="line">                <span class="keyword">yield</span> gen.moment</span><br><span class="line">        <span class="keyword">finally</span>:</span><br><span class="line">            <span class="comment"># HTTPServer.on_close 方法仅将当前 HTTP1ServerConnection 从其内部连接列表中移除。</span></span><br><span class="line">            delegate.on_close(self)</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/HTTPServer/" rel="tag"># HTTPServer</a>
+            
+              <a href="/tags/HTTPServerConnectionDelegate/" rel="tag"># HTTPServerConnectionDelegate</a>
+            
+              <a href="/tags/HTTPMessageDelegate/" rel="tag"># HTTPMessageDelegate</a>
+            
+              <a href="/tags/HTTPConnection/" rel="tag"># HTTPConnection</a>
+            
+              <a href="/tags/HTTP1ServerConnection/" rel="tag"># HTTP1ServerConnection</a>
+            
+              <a href="/tags/HTTP1Connection/" rel="tag"># HTTP1Connection</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/10/14/tornado.tcpserver/" rel="next" title="tornado.tcpserver 模块解析">
+                  <i class="fa fa-chevron-left"></i> tornado.tcpserver 模块解析
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/11/02/tornado.http1connection.HTTP1Connection/" rel="prev" title="tornado.http1connection.HTTP1Connection 消息解析实现">
+                  tornado.http1connection.HTTP1Connection 消息解析实现 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTPServer"><span class="nav-number">2.</span> <span class="nav-text">HTTPServer</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#HTTPServerConnectionDelegate-与-HTTPServer"><span class="nav-number">2.1.</span> <span class="nav-text">HTTPServerConnectionDelegate 与 HTTPServer</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#HTTPMessageDelegate-与-ServerRequestAdapter-GzipMessageDelegate-RequestDispatcher"><span class="nav-number">2.2.</span> <span class="nav-text">HTTPMessageDelegate 与 _ServerRequestAdapter/_GzipMessageDelegate/_RequestDispatcher</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#ServerRequestAdapter"><span class="nav-number">2.2.1.</span> <span class="nav-text">_ServerRequestAdapter</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#GzipMessageDelegate"><span class="nav-number">2.2.2.</span> <span class="nav-text">_GzipMessageDelegate</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#RequestDispatcher"><span class="nav-number">2.2.3.</span> <span class="nav-text">_RequestDispatcher</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#HTTPConnection-与-HTTP1Connection-HTTP1ServerConnection"><span class="nav-number">2.3.</span> <span class="nav-text">HTTPConnection 与 HTTP1Connection/HTTP1ServerConnection[*]</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

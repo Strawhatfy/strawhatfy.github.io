@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言这部分笔记主要是简单分析 Tornado 中 Http 响应相关的代码，但没有涉及到安全相关的 cookie 实现以及 HTML 模板引擎。 HTTPConnectiontornado.httputil 模块定义了 Tornado 的响应接口 HTTPConnection： 12345678910111213141516171819202122232425262728293031class H">
+<meta name="keywords" content="HTTPConnection,HTTP1Connection,Application,RequestHandler">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.web 消息响应实现">
+<meta property="og:url" content="http://yoursite.com/2016/01/29/tornado.web_response/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言这部分笔记主要是简单分析 Tornado 中 Http 响应相关的代码，但没有涉及到安全相关的 cookie 实现以及 HTML 模板引擎。 HTTPConnectiontornado.httputil 模块定义了 Tornado 的响应接口 HTTPConnection： 12345678910111213141516171819202122232425262728293031class H">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2016/01/29/tornado.web_response/http-headers-status.png">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.347Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.web 消息响应实现">
+<meta name="twitter:description" content="引言这部分笔记主要是简单分析 Tornado 中 Http 响应相关的代码，但没有涉及到安全相关的 cookie 实现以及 HTML 模板引擎。 HTTPConnectiontornado.httputil 模块定义了 Tornado 的响应接口 HTTPConnection： 12345678910111213141516171819202122232425262728293031class H">
+<meta name="twitter:image" content="http://yoursite.com/2016/01/29/tornado.web_response/http-headers-status.png">
+  <link rel="canonical" href="http://yoursite.com/2016/01/29/tornado.web_response/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.web 消息响应实现 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/01/29/tornado.web_response/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.web 消息响应实现
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2016-01-29 22:25:01" itemprop="dateCreated datePublished" datetime="2016-01-29T22:25:01+08:00">2016-01-29</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p>这部分笔记主要是简单分析 Tornado 中 Http 响应相关的代码，但没有涉及到安全相关的 cookie 实现以及 HTML 模板引擎。</p>
+<h3 id="HTTPConnection"><a href="#HTTPConnection" class="headerlink" title="HTTPConnection"></a>HTTPConnection</h3><p><code>tornado.httputil</code> 模块定义了 Tornado 的响应接口 <code>HTTPConnection</code>：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">HTTPConnection</span><span class="params">(object)</span>:</span></span><br><span class="line">    <span class="string">"""Applications use this interface to write their responses.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionadded:: 4.0</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">write_headers</span><span class="params">(self, start_line, headers, chunk=None, callback=None)</span>:</span></span><br><span class="line">        <span class="string">"""Write an HTTP header block.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        :arg start_line: a `.RequestStartLine` or `.ResponseStartLine`.</span></span><br><span class="line"><span class="string">        :arg headers: a `.HTTPHeaders` instance.</span></span><br><span class="line"><span class="string">        :arg chunk: the first (optional) chunk of data.  This is an optimization</span></span><br><span class="line"><span class="string">            so that small responses can be written in the same call as their</span></span><br><span class="line"><span class="string">            headers.</span></span><br><span class="line"><span class="string">        :arg callback: a callback to be run when the write is complete.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        Returns a `.Future` if no callback is given.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">raise</span> NotImplementedError()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">write</span><span class="params">(self, chunk, callback=None)</span>:</span></span><br><span class="line">        <span class="string">"""Writes a chunk of body data.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">        The callback will be run when the write is complete.  If no callback</span></span><br><span class="line"><span class="string">        is given, returns a Future.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">raise</span> NotImplementedError()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="string">"""Indicates that the last body data has been written.</span></span><br><span class="line"><span class="string">        """</span></span><br><span class="line">        <span class="keyword">raise</span> NotImplementedError()</span><br></pre></td></tr></table></figure>
+<p>之前已经分析过的 <code>tornado.http1connection.HTTP1Connection</code> 是该接口的实现（另一个实现是 <code>tornado.wsgi._WSGIConnection</code>）。上述定义的三个接口方法注释很完整，简单来说：</p>
+<ol>
+<li><p><code>write_headers</code> 方法用于写 Http 消息头，一次响应应该只调用一次。其中可选参数 <code>chunk</code>，是消息体数据，在响应数据较少的情况下灰常有用，很多时候我们都是调用一次该方法完成写消息头和消息体，而不会去单独调用 <code>write</code> 方法单独写消息体。</p>
+</li>
+<li><p><code>write</code> 方法用于写消息体。</p>
+</li>
+<li><p><code>finish</code> 方法用于告诉接口此次请求响应结束。</p>
+</li>
+</ol>
+<a id="more"></a>
+<h3 id="HTTP1Connection"><a href="#HTTP1Connection" class="headerlink" title="HTTP1Connection"></a>HTTP1Connection</h3><h4 id="write-headers-write"><a href="#write-headers-write" class="headerlink" title="write_headers/write"></a>write_headers/write</h4><p><code>write</code> 方法的实现基本上就是 <code>write_headers</code> 的一部分，这里就把二者的代码放在一起分析。相关代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write_headers</span><span class="params">(self, start_line, headers, chunk=None, callback=None)</span>:</span></span><br><span class="line">    <span class="string">"""Implements `.HTTPConnection.write_headers`."""</span></span><br><span class="line">    <span class="keyword">if</span> self.is_client:</span><br><span class="line">        self._request_start_line = start_line</span><br><span class="line">        <span class="comment"># Client requests with a non-empty body must have either a</span></span><br><span class="line">        <span class="comment"># Content-Length or a Transfer-Encoding.</span></span><br><span class="line">        <span class="comment"># 不检查是否 Http/1.0 是不完备的。</span></span><br><span class="line">        self._chunking_output = (</span><br><span class="line">            start_line.method <span class="keyword">in</span> (<span class="string">'POST'</span>, <span class="string">'PUT'</span>, <span class="string">'PATCH'</span>) <span class="keyword">and</span></span><br><span class="line">            <span class="string">'Content-Length'</span> <span class="keyword">not</span> <span class="keyword">in</span> headers <span class="keyword">and</span></span><br><span class="line">            <span class="string">'Transfer-Encoding'</span> <span class="keyword">not</span> <span class="keyword">in</span> headers)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self._response_start_line = start_line</span><br><span class="line">        <span class="comment"># 对于 HTTP/1.0 ``self._chunking_output=False``，不支持分块传输编码。</span></span><br><span class="line">        self._chunking_output = (</span><br><span class="line">            <span class="comment"># <span class="doctag">TODO:</span> should this use</span></span><br><span class="line">            <span class="comment"># self._request_start_line.version or</span></span><br><span class="line">            <span class="comment"># start_line.version?</span></span><br><span class="line">            self._request_start_line.version == <span class="string">'HTTP/1.1'</span> <span class="keyword">and</span></span><br><span class="line">            <span class="comment"># 304 responses have no body (not even a zero-length body), and so</span></span><br><span class="line">            <span class="comment"># should not have either Content-Length or Transfer-Encoding.</span></span><br><span class="line">            <span class="comment"># headers.</span></span><br><span class="line">            start_line.code != <span class="number">304</span> <span class="keyword">and</span></span><br><span class="line">            <span class="comment"># No need to chunk the output if a Content-Length is specified.</span></span><br><span class="line">            <span class="string">'Content-Length'</span> <span class="keyword">not</span> <span class="keyword">in</span> headers <span class="keyword">and</span></span><br><span class="line">            <span class="comment"># Applications are discouraged from touching Transfer-Encoding,</span></span><br><span class="line">            <span class="comment"># but if they do, leave it alone.</span></span><br><span class="line">            <span class="string">'Transfer-Encoding'</span> <span class="keyword">not</span> <span class="keyword">in</span> headers)</span><br><span class="line">        <span class="comment"># If a 1.0 client asked for keep-alive, add the header.</span></span><br><span class="line">        <span class="comment"># HTTP/1.1 默认就是持久化连接，不需要单独指定。</span></span><br><span class="line">        <span class="comment"># 假设客户端请求使用 HTTP/1.0 和 `Connection:Keep-Alive`，服务端响应时没有指定</span></span><br><span class="line">        <span class="comment"># `Content-Length` （比如在 handler 中多次调用 flush 方法）,那么响应数据就无法</span></span><br><span class="line">        <span class="comment"># 判断边界，代码中应该对这个条件做特别处理。</span></span><br><span class="line">        <span class="keyword">if</span> (self._request_start_line.version == <span class="string">'HTTP/1.0'</span> <span class="keyword">and</span></span><br><span class="line">            (self._request_headers.get(<span class="string">'Connection'</span>, <span class="string">''</span>).lower()</span><br><span class="line">             == <span class="string">'keep-alive'</span>)):</span><br><span class="line">            headers[<span class="string">'Connection'</span>] = <span class="string">'Keep-Alive'</span></span><br><span class="line">    <span class="keyword">if</span> self._chunking_output:</span><br><span class="line">        headers[<span class="string">'Transfer-Encoding'</span>] = <span class="string">'chunked'</span></span><br><span class="line">    <span class="keyword">if</span> (<span class="keyword">not</span> self.is_client <span class="keyword">and</span></span><br><span class="line">        (self._request_start_line.method == <span class="string">'HEAD'</span> <span class="keyword">or</span></span><br><span class="line">         start_line.code == <span class="number">304</span>)):</span><br><span class="line">        self._expected_content_remaining = <span class="number">0</span></span><br><span class="line">    <span class="keyword">elif</span> <span class="string">'Content-Length'</span> <span class="keyword">in</span> headers:</span><br><span class="line">        self._expected_content_remaining = int(headers[<span class="string">'Content-Length'</span>])</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self._expected_content_remaining = <span class="literal">None</span></span><br><span class="line">    lines = [utf8(<span class="string">"%s %s %s"</span> % start_line)]</span><br><span class="line">    <span class="comment"># 通过 add 添加的响应头会输出多个，比如：“Set-Cookie” 响应头。</span></span><br><span class="line">    lines.extend([utf8(n) + <span class="string">b": "</span> + utf8(v) <span class="keyword">for</span> n, v <span class="keyword">in</span> headers.get_all()])</span><br><span class="line">    <span class="keyword">for</span> line <span class="keyword">in</span> lines:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">b'\n'</span> <span class="keyword">in</span> line:</span><br><span class="line">            <span class="keyword">raise</span> ValueError(<span class="string">'Newline in header: '</span> + repr(line))</span><br><span class="line">    future = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> self.stream.closed():</span><br><span class="line">        future = self._write_future = Future()</span><br><span class="line">        future.set_exception(iostream.StreamClosedError())</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># "写回调" 是一个实例字段 `_write_callback`，当上一次写操作还没有回调时就再次执行</span></span><br><span class="line">        <span class="comment"># 写操作，那么上一次写操作的回调将被放弃（callback is not None）</span></span><br><span class="line">        <span class="keyword">if</span> callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            self._write_callback = stack_context.wrap(callback)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># 没有 callback 时，返回 Future(self._write_future)</span></span><br><span class="line">            future = self._write_future = Future()</span><br><span class="line">        <span class="comment"># Headers</span></span><br><span class="line">        data = <span class="string">b"\r\n"</span>.join(lines) + <span class="string">b"\r\n\r\n"</span></span><br><span class="line">        <span class="comment"># message-body</span></span><br><span class="line">        <span class="keyword">if</span> chunk:</span><br><span class="line">            data += self._format_chunk(chunk)</span><br><span class="line">        self._pending_write = self.stream.write(data)</span><br><span class="line">        self._pending_write.add_done_callback(self._on_write_complete)</span><br><span class="line">    <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write</span><span class="params">(self, chunk, callback=None)</span>:</span></span><br><span class="line">    <span class="string">"""Implements `.HTTPConnection.write`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    For backwards compatibility is is allowed but deprecated to</span></span><br><span class="line"><span class="string">    skip `write_headers` and instead call `write()` with a</span></span><br><span class="line"><span class="string">    pre-encoded header block.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    future = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> self.stream.closed():</span><br><span class="line">        future = self._write_future = Future()</span><br><span class="line">        self._write_future.set_exception(iostream.StreamClosedError())</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">if</span> callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            self._write_callback = stack_context.wrap(callback)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            future = self._write_future = Future()</span><br><span class="line">        self._pending_write = self.stream.write(self._format_chunk(chunk))</span><br><span class="line">        self._pending_write.add_done_callback(self._on_write_complete)</span><br><span class="line">    <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_on_write_complete</span><span class="params">(self, future)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self._write_callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        callback = self._write_callback</span><br><span class="line">        self._write_callback = <span class="literal">None</span></span><br><span class="line">        self.stream.io_loop.add_callback(callback)</span><br><span class="line">    <span class="keyword">if</span> self._write_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        future = self._write_future</span><br><span class="line">        self._write_future = <span class="literal">None</span></span><br><span class="line">        future.set_result(<span class="literal">None</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_format_chunk</span><span class="params">(self, chunk)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self._expected_content_remaining <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self._expected_content_remaining -= len(chunk)</span><br><span class="line">        <span class="keyword">if</span> self._expected_content_remaining &lt; <span class="number">0</span>:</span><br><span class="line">            <span class="comment"># Close the stream now to stop further framing errors.</span></span><br><span class="line">            self.stream.close()</span><br><span class="line">            <span class="keyword">raise</span> httputil.HTTPOutputError(</span><br><span class="line">                <span class="string">"Tried to write more data than Content-Length"</span>)</span><br><span class="line">    <span class="keyword">if</span> self._chunking_output <span class="keyword">and</span> chunk:</span><br><span class="line">        <span class="comment"># Don't write out empty chunks because that means END-OF-STREAM</span></span><br><span class="line">        <span class="comment"># with chunked encoding</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># Each chunk: the number of octets of the data(hex number) + CRLF + chunk data + CRLF</span></span><br><span class="line">        <span class="keyword">return</span> utf8(<span class="string">"%x"</span> % len(chunk)) + <span class="string">b"\r\n"</span> + chunk + <span class="string">b"\r\n"</span></span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">return</span> chunk</span><br></pre></td></tr></table></figure>
+<p>上述代码逻辑不复杂，但是有几点需要注意一下：</p>
+<ol>
+<li><p><code>self._chunking_output</code> 是分块传输编码 <code>Transfer-Encoding: chunked</code>  启用标识，仅在 Http/1.1 提供。<strong>对于客户端请求而言，不检查是否 HTTP/1.0 是不完备的，会导致问题。</strong></p>
+</li>
+<li><p><code>Connection:Keep-Alive</code> 响应头在 HTTP/1.1 是默认的，不需要特别设置，而 HTTP/1.0 则需要显示设置。所以服务端响应时要根据请求的 HTTP 版本及 <code>Connection</code> 值来决定是否发送 <code>Connection:Keep-Alive</code>。这里其实有一个问题：<strong>假设客户端请求使用 HTTP/1.0 和 <code>Connection:Keep-Alive</code>，服务端响应时没有指定 <code>Content-Length</code> （比如在 handler 中多次调用 flush 方法）,那么响应数据就无法判断边界，代码中没有对这个条件做特别处理。</strong>两个解决方案：1. 检测到这种情况时响应非 Keep-Alive 模式；2. 只支持 HTTP/1.1 响应。</p>
+</li>
+<li><p><code>write_headers</code> 调用时没有指定 <code>callback</code> 时返回 Future 对象，否则返回 None，且在写操作完成后执行 <code>callback</code>。</p>
+</li>
+<li><p>连续执行两次带 <code>callback</code> 的写操作，由于 <code>callback</code> 保存在实例字段 <code>_write_callback</code>中，当上一次写操作还没有回调时就再次执行下一次写操作，那么上一次的 <code>callback</code> 将被放弃。</p>
+</li>
+</ol>
+<p><strong>注：</strong>octet 总是指 8bit，byte 通常情况下也是指 8bit，但是准确来说， byte 指的是计算机 CPU 可以独立寻址的最小内存单位。曾几何时，有些计算机的寻址并不是 8bit，不过现在的计算机几乎 octet 等价于 byte，仅当你要强调准确的 8bit 时就应该使用 octet 而不是 byte。</p>
+<h4 id="finish"><a href="#finish" class="headerlink" title="finish"></a>finish</h4><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Implements `.HTTPConnection.finish`."""</span></span><br><span class="line">    <span class="keyword">if</span> (self._expected_content_remaining <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">            self._expected_content_remaining != <span class="number">0</span> <span class="keyword">and</span></span><br><span class="line">            <span class="keyword">not</span> self.stream.closed()):</span><br><span class="line">        self.stream.close()</span><br><span class="line">        <span class="keyword">raise</span> httputil.HTTPOutputError(</span><br><span class="line">            <span class="string">"Tried to write %d bytes less than Content-Length"</span> %</span><br><span class="line">            self._expected_content_remaining)</span><br><span class="line">    <span class="keyword">if</span> self._chunking_output:</span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self.stream.closed():</span><br><span class="line">            <span class="comment"># `Transfer-Encoding:chunked`: The terminating chunk is a</span></span><br><span class="line">            <span class="comment"># regular chunk, with the exception that its length is zero.</span></span><br><span class="line">            self._pending_write = self.stream.write(<span class="string">b"0\r\n\r\n"</span>)</span><br><span class="line">            self._pending_write.add_done_callback(self._on_write_complete)</span><br><span class="line">    self._write_finished = <span class="literal">True</span></span><br><span class="line">    <span class="comment"># If the app finished the request while we're still reading,</span></span><br><span class="line">    <span class="comment"># divert any remaining data away from the delegate and</span></span><br><span class="line">    <span class="comment"># close the connection when we're done sending our response.</span></span><br><span class="line">    <span class="comment"># Closing the connection is the only way to avoid reading the</span></span><br><span class="line">    <span class="comment"># whole input body.</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._read_finished:</span><br><span class="line">        self._disconnect_on_finish = <span class="literal">True</span></span><br><span class="line">    <span class="comment"># No more data is coming, so instruct TCP to send any remaining</span></span><br><span class="line">    <span class="comment"># data immediately instead of waiting for a full packet or ack.</span></span><br><span class="line">    <span class="comment"># 关闭 Nagle 算法，效果相当于让 socket 立即 flush 数据到客户端，随后将在</span></span><br><span class="line">    <span class="comment"># `_finish_request` 中恢复 Nagle 算法。</span></span><br><span class="line">    self.stream.set_nodelay(<span class="literal">True</span>)</span><br><span class="line">    <span class="keyword">if</span> self._pending_write <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        self._finish_request(<span class="literal">None</span>)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># 最后一次挂起的写操作完成后回调 `_finish_request` 方法。</span></span><br><span class="line">        self._pending_write.add_done_callback(self._finish_request)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_finish_request</span><span class="params">(self, future)</span>:</span></span><br><span class="line">    <span class="comment"># ``close`` 中还会执行一次，调整到后面执行更好</span></span><br><span class="line">    self._clear_callbacks()</span><br><span class="line">    <span class="comment"># 服务端不需要支持长连接时，执行关闭操作</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self.is_client <span class="keyword">and</span> self._disconnect_on_finish:</span><br><span class="line">        self.close()</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="comment"># Turn Nagle's algorithm back on, leaving the stream in its</span></span><br><span class="line">    <span class="comment"># default state for the next request.</span></span><br><span class="line">    self.stream.set_nodelay(<span class="literal">False</span>)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._finish_future.done():</span><br><span class="line">        self._finish_future.set_result(<span class="literal">None</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_clear_callbacks</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Clears the callback attributes.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    This allows the request handler to be garbage collected more</span></span><br><span class="line"><span class="string">    quickly in CPython by breaking up reference cycles.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    self._write_callback = <span class="literal">None</span></span><br><span class="line">    self._write_future = <span class="literal">None</span></span><br><span class="line">    self._close_callback = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> self.stream <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self.stream.set_close_callback(<span class="literal">None</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">close</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self.stream <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self.stream.close()</span><br><span class="line">    self._clear_callbacks()</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._finish_future.done():</span><br><span class="line">        self._finish_future.set_result(<span class="literal">None</span>)</span><br></pre></td></tr></table></figure>
+<p><code>finish</code> 方法基本上就是做了这几件事：</p>
+<ol>
+<li>检查指定长度的消息体是否发送完成或者在 <code>Transfer-Encoding:chunked</code> 模式下发送结束块。</li>
+<li>如果在请求数据读取完成之前就响应完成就直接关闭连接。</li>
+<li>设置响应结束标识 <code>_write_finished</code>，立即 flush 数据到客户端。</li>
+<li>立即执行 <code>_finish_request</code> 方法或者等挂起的写操作完成后执行。</li>
+</ol>
+<h3 id="RequestHandler"><a href="#RequestHandler" class="headerlink" title="RequestHandler"></a>RequestHandler</h3><p><code>languageRequestHandler</code> 与响应直接相关的方法是 <code>flush</code> 和 <code>finish</code>，这两个方法内部都是委托 <code>HTTP1Connection</code> 来执行。</p>
+<h4 id="finish-1"><a href="#finish-1" class="headerlink" title="finish"></a>finish</h4><p><code>finish</code> 方法用来结束此次请求和响应。代码如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">finish</span><span class="params">(self, chunk=None)</span>:</span></span><br><span class="line">    <span class="string">"""Finishes this response, ending the HTTP request."""</span></span><br><span class="line">    <span class="keyword">if</span> self._finished:</span><br><span class="line">        <span class="keyword">raise</span> RuntimeError(<span class="string">"finish() called twice.  May be caused "</span></span><br><span class="line">                           <span class="string">"by using async operations without the "</span></span><br><span class="line">                           <span class="string">"@asynchronous decorator."</span>)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> chunk <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self.write(chunk)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Automatically support ETags and add the Content-Length header if</span></span><br><span class="line">    <span class="comment"># we have not flushed any content yet.</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._headers_written:</span><br><span class="line">        <span class="keyword">if</span> (self._status_code == <span class="number">200</span> <span class="keyword">and</span></span><br><span class="line">            self.request.method <span class="keyword">in</span> (<span class="string">"GET"</span>, <span class="string">"HEAD"</span>) <span class="keyword">and</span></span><br><span class="line">                <span class="string">"Etag"</span> <span class="keyword">not</span> <span class="keyword">in</span> self._headers):</span><br><span class="line">            self.set_etag_header()</span><br><span class="line">            <span class="keyword">if</span> self.check_etag_header():</span><br><span class="line">                self._write_buffer = []</span><br><span class="line">                self.set_status(<span class="number">304</span>)</span><br><span class="line">        <span class="keyword">if</span> self._status_code == <span class="number">304</span>:</span><br><span class="line">            <span class="keyword">assert</span> <span class="keyword">not</span> self._write_buffer, <span class="string">"Cannot send body with 304"</span></span><br><span class="line">            self._clear_headers_for_304()</span><br><span class="line">        <span class="keyword">elif</span> <span class="string">"Content-Length"</span> <span class="keyword">not</span> <span class="keyword">in</span> self._headers:</span><br><span class="line">            content_length = sum(len(part) <span class="keyword">for</span> part <span class="keyword">in</span> self._write_buffer)</span><br><span class="line">            self.set_header(<span class="string">"Content-Length"</span>, content_length)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> hasattr(self.request, <span class="string">"connection"</span>):</span><br><span class="line">        <span class="comment"># Now that the request is finished, clear the callback we</span></span><br><span class="line">        <span class="comment"># set on the HTTPConnection (which would otherwise prevent the</span></span><br><span class="line">        <span class="comment"># garbage collection of the RequestHandler when there</span></span><br><span class="line">        <span class="comment"># are keepalive connections)</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># <span class="doctag">NOTE:</span> 这里注释说请求处理完成时将 `HTTPConnection` 的连接关闭回调设置为 None，</span></span><br><span class="line">        <span class="comment"># 否则长连接情况下当前 `RequestHandler` 实例由于被连接引用而不能被及时垃圾回收。</span></span><br><span class="line">        <span class="comment"># 这个问题应该是 Tornado v4.0 之前由 `HTTPConnection` 处理 “连接保持”造成的，</span></span><br><span class="line">        <span class="comment"># 之后的版本由于分离出 `HTTP1ServerConnection` 来处理连接保持已经不存在这个问题：</span></span><br><span class="line">        <span class="comment"># 每次请求都是单独生成一个 `HTTP1Connection` 实例处理，并且在请求处理完成后会调用</span></span><br><span class="line">        <span class="comment"># `_clear_callbacks` 方法自动清空回调（参见 `_read_message` 的 finally 块）。</span></span><br><span class="line">        self.request.connection.set_close_callback(<span class="literal">None</span>)</span><br><span class="line"></span><br><span class="line">    self.flush(include_footers=<span class="literal">True</span>)</span><br><span class="line">    <span class="comment"># 按 `HttpServerRequest.finish` 的注释，该方法在 v4.0 已经放弃，而建议直接使用</span></span><br><span class="line">    <span class="comment"># `request.connection.finish` 方法。</span></span><br><span class="line">    self.request.finish()</span><br><span class="line">    self._log()</span><br><span class="line">    self._finished = <span class="literal">True</span></span><br><span class="line">    self.on_finish()</span><br><span class="line">    <span class="comment"># Break up a reference cycle between this handler and the</span></span><br><span class="line">    <span class="comment"># _ui_module closures to allow for faster GC on CPython.</span></span><br><span class="line">    self.ui = <span class="literal">None</span></span><br></pre></td></tr></table></figure>
+<p><code>finish</code> 时如果之前没有 <code>flush</code> 过数据则会自动为响应增加 “Etag” 和 “Content-Length” 头域，并会尝试比较新增的 “Etag” 与请求的 “If-None-Match” 值（），若是相同则会修改默认的响应编码 <strong>200</strong> 为 <strong>304</strong>。<code>finish</code> 会调用 <code>flush</code> 方法将响应数据发送到客户端，接着执行一些资源清理和调用 “模板” 方法。</p>
+<p><strong>注：</strong></p>
+<ol>
+<li><p><a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.19" target="_blank" rel="noopener">“Etag”（实体标签， rfc2616）</a>是 HTTP/1.1 协议的一部分，但不是必须的头域（可选），HTTP/1.1 协议规范从未规定过其生成方法。“Etag” 是 HTTP 提供的若干缓存验证机制中的一种，允许客户端进行缓存协商。通常 “Etag” 类似资源内容的指纹，服务端响应时返回资源的 “Etag” 值，客户端可以决定是否缓存这个资源和 “Etag” 值。之后客户端想再请求相同 URL 时，<strong>通常</strong>会把缓存的 “Etag” 值放在 <a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.26" target="_blank" rel="noopener">“Etag/”</a> 字段中发送给服务端。服务端可能在接收请求后比较客户端的 “If-None-Match” 与 服务端 “Etag” 值，如果匹配，就意味着资源未发生变化，服务器就会发送一个 <strong>HTTP 304(GET/HEAD) 或者 412(other request methods)</strong> 状态码，而不需要再次发送响应消息体。反之，服务端会发送一个包含消息体的完整响应。前面说 <strong>“通常”</strong>，是因为 HTTP 规范中还定义了 <a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.24" target="_blank" rel="noopener">“If-Match”（不匹配时响应 HTTP 412）</a> 字段，rfc2616 上说的很不明确，通常不推荐使用，至少 Tornado 目前仅仅支持 “GET/HEAD” 与 “Etag/If-None-Match”。关于 “If-Match” 的问题，我在 stackoverflow 查到一个资料说是： <a href="http://stackoverflow.com/questions/14303295/get-request-with-if-match-and-etags" target="_blank" rel="noopener">不推荐使用</a>，还有一个对 rfc2616 <a href="http://stackoverflow.com/questions/2157124/http-if-none-match-vs-if-match/2157609#2157609" target="_blank" rel="noopener">“If-Match”</a> 的总结。</p>
+</li>
+<li><p><a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.29" target="_blank" rel="noopener">Last-Modified</a> 实体头字段，该字段用于指示资源最后修改时间，在服务端响应时发送给客户端，在之后客户端请求相同 URL 时会把这个字段值放在 <a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.25" target="_blank" rel="noopener">If-Modified-Since</a> 或者 <a href="https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.28" target="_blank" rel="noopener">If-Unmodified-Since</a>请求头中发送给服务端。服务端将资源当前修改时间与该值进行比较以确定是否响应 HTTP 304。</p>
+</li>
+<li><p>“Etag” 比 “Last-Modified” 控制的更准确，能够解决一些 “Last-Modified” 无法解决的问题，比如：1. 周期性修改的文件，但内容不改变；2. “Last-Modified” 只能精确到秒；3. 某些时候可能无法准确得到文件的修改时间。</p>
+</li>
+<li><p>这里有人做了一个 <a href="https://code.google.com/archive/p/http-headers-status/" target="_blank" rel="noopener">http headers status</a> 的草图，看图更清晰。</p>
+</li>
+</ol>
+<h4 id="flush"><a href="#flush" class="headerlink" title="flush"></a>flush</h4><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">flush</span><span class="params">(self, include_footers=False, callback=None)</span>:</span></span><br><span class="line">    <span class="string">"""Flushes the current output buffer to the network.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The ``callback`` argument, if given, can be used for flow control:</span></span><br><span class="line"><span class="string">    it will be run when all flushed data has been written to the socket.</span></span><br><span class="line"><span class="string">    Note that only one flush callback can be outstanding at a time;</span></span><br><span class="line"><span class="string">    if another flush occurs before the previous flush's callback</span></span><br><span class="line"><span class="string">    has been run, the previous callback will be discarded.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionchanged:: 4.0</span></span><br><span class="line"><span class="string">       Now returns a `.Future` if no callback is given.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    chunk = <span class="string">b""</span>.join(self._write_buffer)</span><br><span class="line">    self._write_buffer = []</span><br><span class="line">    <span class="comment"># 响应头只会写一次，flush 操作以后再修改的响应头是不会发送到客户端的，但也不会抛异常，</span></span><br><span class="line">    <span class="comment"># 这个与其他的一些 web framework 抛异常的处理方式不一样。</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._headers_written:</span><br><span class="line">        self._headers_written = <span class="literal">True</span></span><br><span class="line">        <span class="keyword">for</span> transform <span class="keyword">in</span> self._transforms:</span><br><span class="line">            self._status_code, self._headers, chunk = \</span><br><span class="line">                transform.transform_first_chunk(</span><br><span class="line">                    self._status_code, self._headers, chunk, include_footers)</span><br><span class="line">        <span class="comment"># Ignore the chunk and only write the headers for HEAD requests</span></span><br><span class="line">        <span class="keyword">if</span> self.request.method == <span class="string">"HEAD"</span>:</span><br><span class="line">            chunk = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">        <span class="comment"># Finalize the cookie headers (which have been stored in a side</span></span><br><span class="line">        <span class="comment"># object so an outgoing cookie could be overwritten before it</span></span><br><span class="line">        <span class="comment"># is sent).</span></span><br><span class="line">        <span class="keyword">if</span> hasattr(self, <span class="string">"_new_cookie"</span>):</span><br><span class="line">            <span class="keyword">for</span> cookie <span class="keyword">in</span> self._new_cookie.values():</span><br><span class="line">                self.add_header(<span class="string">"Set-Cookie"</span>, cookie.OutputString(<span class="literal">None</span>))</span><br><span class="line"></span><br><span class="line">        <span class="comment"># NOTE：在 Keep-Alive 模式下（`Connection: Keep-Alive`），判断消息边界只能通过</span></span><br><span class="line">        <span class="comment"># `Content-Length` 或者 `Transfer-Encoding: chunked`，后者仅在 Http/1.1</span></span><br><span class="line">        <span class="comment"># 提供。若客户端请求是 Http/1.0，在没有指定 `Content-Length` 头域的情况下，按照</span></span><br><span class="line">        <span class="comment"># 目前实现主动多次调用 `flush(include_footers=False)` 方法写数据，</span></span><br><span class="line">        <span class="comment"># `write_headers` 中没法支持 chunked，会有问题。看了一下之后的代码，这里已经不依赖</span></span><br><span class="line">        <span class="comment"># `self.request.version`，`write_headers` 强制启用 Http/1.1。</span></span><br><span class="line">        start_line = httputil.ResponseStartLine(self.request.version,</span><br><span class="line">                                                self._status_code,</span><br><span class="line">                                                self._reason)</span><br><span class="line">        <span class="keyword">return</span> self.request.connection.write_headers(</span><br><span class="line">            start_line, self._headers, chunk, callback=callback)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">for</span> transform <span class="keyword">in</span> self._transforms:</span><br><span class="line">            chunk = transform.transform_chunk(chunk, include_footers)</span><br><span class="line">        <span class="comment"># Ignore the chunk and only write the headers for HEAD requests</span></span><br><span class="line">        <span class="keyword">if</span> self.request.method != <span class="string">"HEAD"</span>:</span><br><span class="line">            <span class="keyword">return</span> self.request.connection.write(chunk, callback=callback)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            future = Future()</span><br><span class="line">            future.set_result(<span class="literal">None</span>)</span><br><span class="line">            <span class="keyword">return</span> future</span><br></pre></td></tr></table></figure>
+<p><code>flush</code> 方法根据是否需要写 headers 来决定调用 <code>Http1Connection</code> 实例的 <code>write_headers</code>  方法或者 <code>write</code> 方法。需要注意的是，响应的 HTTP 版本与请求的 HTTP 版本是一致的，这样 HTTP/1.0 时一次请求多次调用 <code>flush</code> 可能会因为没有提前指定 <code>Content-Length</code> 而导致 “Keep-Alive” 时数据无边界问题（HTTP/1.1 支持分块传输编码便不会有这个问题，在前面分析 <code>Http1Connection</code> 的 <code>write_headers</code> 方法时有解释）。</p>
+<p>Cookie 的设置是通过响应头 “Set-Cookie” 实现的，代码中将每一个 cookie 通过 <code>self.add_header(&quot;Set-Cookie&quot;, cookie.OutputString(None))</code> 方法加入到响应头 “Set-Cookie”，<strong>最终会有多个 “Set-Cookie” 响应头输出到客户端。</strong></p>
+<p>还有就是 <code>OutputTransform</code> 的使用，<code>OutputTransform</code> 定义如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">OutputTransform</span><span class="params">(object)</span>:</span></span><br><span class="line">    <span class="string">"""A transform modifies the result of an HTTP request (e.g., GZip encoding)</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Applications are not expected to create their own OutputTransforms</span></span><br><span class="line"><span class="string">    or interact with them directly; the framework chooses which transforms</span></span><br><span class="line"><span class="string">    (if any) to apply.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, request)</span>:</span></span><br><span class="line">        <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">transform_first_chunk</span><span class="params">(self, status_code, headers, chunk, finishing)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> status_code, headers, chunk</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">transform_chunk</span><span class="params">(self, chunk, finishing)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> chunk</span><br></pre></td></tr></table></figure>
+<p><code>OutputTransform</code> 定义了转换响应数据的转换器基类型，因为 HTTP 响应头和消息体格式的差异，该基类型定义了两个方法 <code>transform_first_chunk</code> 和 <code>transform_chunk</code>，分别对响应头和消息体进行数据转换。我们可以自定义实现自己的转化器，在 <code>Application</code> 初始化时传递给它，目前框架默认实现的转换器是 <code>GZipContentEncoding</code>，仅在没有指定任何转换器时根据设置尝试使用，下面是 <code>Application</code> 构造方法的相关代码代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, handlers=None, default_host=<span class="string">""</span>, transforms=None,</span></span></span><br><span class="line"><span class="function"><span class="params">             **settings)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> transforms <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        self.transforms = []</span><br><span class="line">        <span class="keyword">if</span> settings.get(<span class="string">"compress_response"</span>) <span class="keyword">or</span> settings.get(<span class="string">"gzip"</span>):</span><br><span class="line">            self.transforms.append(GZipContentEncoding)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self.transforms = transforms</span><br><span class="line"></span><br><span class="line">    ……略……</span><br></pre></td></tr></table></figure>
+<p><code>GZipContentEncoding</code> 实现对响应数据进行 gzip 压缩的功能，一般生产环境下 Tornado 进程不会直接位于请求最前端，所以可能不常使用。通常这个 gzip 压缩功能我都交给 Nginx 去做。</p>
+<h4 id="header-methods"><a href="#header-methods" class="headerlink" title="header methods"></a>header methods</h4><p><code>clear</code> 方法，用来重置响应头，请求处理器在 <code>__init__</code> 调用该方法初始化响应头：默认的响应头有 “Server”，“Content-Type”，“Date”，状态码是 200。<code>set_default_headers</code> 方法是个模板方法，子类可以实现该方法来为每次请求添加其他的默认响应头。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">clear</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Resets all headers and content for this response."""</span></span><br><span class="line">    self._headers = httputil.HTTPHeaders(&#123;</span><br><span class="line">        <span class="string">"Server"</span>: <span class="string">"TornadoServer/%s"</span> % tornado.version,</span><br><span class="line">        <span class="string">"Content-Type"</span>: <span class="string">"text/html; charset=UTF-8"</span>,</span><br><span class="line">        <span class="string">"Date"</span>: httputil.format_timestamp(time.time()),</span><br><span class="line">    &#125;)</span><br><span class="line">    self.set_default_headers()</span><br><span class="line">    self._write_buffer = []</span><br><span class="line">    self._status_code = <span class="number">200</span></span><br><span class="line">    self._reason = httputil.responses[<span class="number">200</span>]</span><br></pre></td></tr></table></figure>
+<p><code>set_header</code> 设置给定响应头，如果给定的 “datetime” 类型的值， Tornado 自动按照 HTTP 要求将其格式化。如果不是 “string”，Tornado 会将其转为 “string”，所有的值都会按照 utf8 编码。</p>
+<p><code>add_header</code> 添加给定的响应头，与 <code>set_header</code> 不同，该方法可以被多次调用而为同一个响应头设置多个值。</p>
+<p><code>clear_header</code> 清除给定的响应头，撤销前一个 “set_header” 调用，但不是撤销 “add_header” 调用（这个说的可能有点绕，具体可以看 <code>HttpHeader</code> 的实现代码。简单来说就是因为 <code>HttpHeader</code> 重写了 <code>__setitem__</code>  方法，<code>add_header</code> 绕过了重写的 <code>__setitem__</code> 方法，所以说不能通过 <code>clear_header</code> 中调用 del 操作撤销。）。</p>
+<p><code>set_status</code> 和 <code>get_status</code> 用于设置和获取响应的状态码。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">set_status</span><span class="params">(self, status_code, reason=None)</span>:</span></span><br><span class="line">    <span class="string">"""Sets the status code for our response.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    :arg int status_code: Response status code. If ``reason`` is ``None``,</span></span><br><span class="line"><span class="string">        it must be present in `httplib.responses &lt;http.client.responses&gt;`.</span></span><br><span class="line"><span class="string">    :arg string reason: Human-readable reason phrase describing the status</span></span><br><span class="line"><span class="string">        code. If ``None``, it will be filled in from</span></span><br><span class="line"><span class="string">        `httplib.responses &lt;http.client.responses&gt;`.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    self._status_code = status_code</span><br><span class="line">    <span class="keyword">if</span> reason <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self._reason = escape.native_str(reason)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            self._reason = httputil.responses[status_code]</span><br><span class="line">        <span class="keyword">except</span> KeyError:</span><br><span class="line">            <span class="keyword">raise</span> ValueError(<span class="string">"unknown status code %d"</span>, status_code)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">get_status</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Returns the status code for our response."""</span></span><br><span class="line">    <span class="keyword">return</span> self._status_code</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">set_header</span><span class="params">(self, name, value)</span>:</span></span><br><span class="line">    <span class="string">"""Sets the given response header name and value.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If a datetime is given, we automatically format it according to the</span></span><br><span class="line"><span class="string">    HTTP specification. If the value is not a string, we convert it to</span></span><br><span class="line"><span class="string">    a string. All header values are then encoded as UTF-8.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    self._headers[name] = self._convert_header_value(value)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">add_header</span><span class="params">(self, name, value)</span>:</span></span><br><span class="line">    <span class="string">"""Adds the given response header and value.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Unlike `set_header`, `add_header` may be called multiple times</span></span><br><span class="line"><span class="string">    to return multiple values for the same header.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    self._headers.add(name, self._convert_header_value(value))</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">clear_header</span><span class="params">(self, name)</span>:</span></span><br><span class="line">    <span class="string">"""Clears an outgoing header, undoing a previous `set_header` call.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Note that this method does not apply to multi-valued headers</span></span><br><span class="line"><span class="string">    set by `add_header`.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> name <span class="keyword">in</span> self._headers:</span><br><span class="line">        <span class="keyword">del</span> self._headers[name]</span><br><span class="line"></span><br><span class="line"><span class="comment"># ASCII 0～31 的字符将视为非法的 Header 字符。后面有提到，比如如果允许 `\r\n` 字符，</span></span><br><span class="line"><span class="comment"># 便可能导致意外的 Header 注入(按照 Http 协议，Header 之间是以 `\r\n` 分割)。</span></span><br><span class="line">_INVALID_HEADER_CHAR_RE = re.compile(<span class="string">br"[\x00-\x1f]"</span>)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_convert_header_value</span><span class="params">(self, value)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(value, bytes_type):</span><br><span class="line">        <span class="keyword">pass</span></span><br><span class="line">    <span class="keyword">elif</span> isinstance(value, unicode_type):</span><br><span class="line">        value = value.encode(<span class="string">'utf-8'</span>)</span><br><span class="line">    <span class="keyword">elif</span> isinstance(value, numbers.Integral):</span><br><span class="line">        <span class="comment"># return immediately since we know the converted value will be safe</span></span><br><span class="line">        <span class="keyword">return</span> str(value)</span><br><span class="line">    <span class="keyword">elif</span> isinstance(value, datetime.datetime):</span><br><span class="line">        <span class="keyword">return</span> httputil.format_timestamp(value)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="keyword">raise</span> TypeError(<span class="string">"Unsupported header value %r"</span> % value)</span><br><span class="line">    <span class="comment"># If \n is allowed into the header, it is possible to inject</span></span><br><span class="line">    <span class="comment"># additional headers or split the request. Also cap length to</span></span><br><span class="line">    <span class="comment"># prevent obviously erroneous values.</span></span><br><span class="line">    <span class="keyword">if</span> (len(value) &gt; <span class="number">4000</span> <span class="keyword">or</span></span><br><span class="line">            RequestHandler._INVALID_HEADER_CHAR_RE.search(value)):</span><br><span class="line">        <span class="keyword">raise</span> ValueError(<span class="string">"Unsafe header value %r"</span>, value)</span><br><span class="line">    <span class="keyword">return</span> value</span><br></pre></td></tr></table></figure>
+<h3 id="附：http-headers-status-图"><a href="#附：http-headers-status-图" class="headerlink" title="附：http-headers-status 图"></a>附：<a href="(https://code.google.com/archive/p/http-headers-status/">http-headers-status 图</a></h3><img src="/2016/01/29/tornado.web_response/http-headers-status.png">
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/HTTPConnection/" rel="tag"># HTTPConnection</a>
+            
+              <a href="/tags/HTTP1Connection/" rel="tag"># HTTP1Connection</a>
+            
+              <a href="/tags/Application/" rel="tag"># Application</a>
+            
+              <a href="/tags/RequestHandler/" rel="tag"># RequestHandler</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2016/01/24/tornado.httputil.parse_body_arguments/" rel="next" title="tornado.httputil 对 Http request message-body 的解析">
+                  <i class="fa fa-chevron-left"></i> tornado.httputil 对 Http request message-body 的解析
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2016/01/30/tornado.web_handle_exception/" rel="prev" title="tornado.web.RequestHandler 异常处理">
+                  tornado.web.RequestHandler 异常处理 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTPConnection"><span class="nav-number">2.</span> <span class="nav-text">HTTPConnection</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTP1Connection"><span class="nav-number">3.</span> <span class="nav-text">HTTP1Connection</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#write-headers-write"><span class="nav-number">3.1.</span> <span class="nav-text">write_headers/write</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#finish"><span class="nav-number">3.2.</span> <span class="nav-text">finish</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#RequestHandler"><span class="nav-number">4.</span> <span class="nav-text">RequestHandler</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#finish-1"><span class="nav-number">4.1.</span> <span class="nav-text">finish</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#flush"><span class="nav-number">4.2.</span> <span class="nav-text">flush</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#header-methods"><span class="nav-number">4.3.</span> <span class="nav-text">header methods</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#附：http-headers-status-图"><span class="nav-number">5.</span> <span class="nav-text">附：http-headers-status 图</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

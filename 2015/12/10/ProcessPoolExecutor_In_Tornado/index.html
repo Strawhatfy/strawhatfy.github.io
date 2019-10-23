@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="背景编程时遇到的阻塞任务一般有两类：  等待 I/O 就绪（I/O 密集型）； 耗时的计算工作（CPU 密集型）。  遇到这类任务，通常首选考虑是否可以优化操作（主要是针对第 2 种情况），将阻塞限制在可以接受的范围内，若不行则考虑使用多线程或多进程，将阻塞操作交由其他线程（例如 .NET APM，.NET 异步编程模型使用线程池来异步执行任务）或进程（fork/exec、任务队列，或者异步委托第">
+<meta name="keywords" content="python,tornado,ioloop,futures,ThreadPoolExecutor,ProcessPoolExecutor">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ProcessPoolExecutor In Tornado">
+<meta property="og:url" content="http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="背景编程时遇到的阻塞任务一般有两类：  等待 I/O 就绪（I/O 密集型）； 耗时的计算工作（CPU 密集型）。  遇到这类任务，通常首选考虑是否可以优化操作（主要是针对第 2 种情况），将阻塞限制在可以接受的范围内，若不行则考虑使用多线程或多进程，将阻塞操作交由其他线程（例如 .NET APM，.NET 异步编程模型使用线程池来异步执行任务）或进程（fork/exec、任务队列，或者异步委托第">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/pep_3154.png">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.324Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ProcessPoolExecutor In Tornado">
+<meta name="twitter:description" content="背景编程时遇到的阻塞任务一般有两类：  等待 I/O 就绪（I/O 密集型）； 耗时的计算工作（CPU 密集型）。  遇到这类任务，通常首选考虑是否可以优化操作（主要是针对第 2 种情况），将阻塞限制在可以接受的范围内，若不行则考虑使用多线程或多进程，将阻塞操作交由其他线程（例如 .NET APM，.NET 异步编程模型使用线程池来异步执行任务）或进程（fork/exec、任务队列，或者异步委托第">
+<meta name="twitter:image" content="http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/pep_3154.png">
+  <link rel="canonical" href="http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>ProcessPoolExecutor In Tornado | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">ProcessPoolExecutor In Tornado
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-12-10 14:58:01" itemprop="dateCreated datePublished" datetime="2015-12-10T14:58:01+08:00">2015-12-10</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="背景"><a href="#背景" class="headerlink" title="背景"></a>背景</h3><p>编程时遇到的阻塞任务一般有两类：</p>
+<ol>
+<li>等待 I/O 就绪（I/O 密集型）；</li>
+<li>耗时的计算工作（CPU 密集型）。</li>
+</ol>
+<p>遇到这类任务，通常首选考虑是否可以优化操作（主要是针对第 2 种情况），将阻塞限制在可以接受的范围内，若不行则考虑使用多线程或多进程，将阻塞操作交由其他线程（例如 .NET APM，.NET 异步编程模型使用线程池来异步执行任务）或进程（fork/exec、任务队列，或者异步委托第三方服务 API）去异步处理，然后在操作结束后取回结果。对于第 1 种情况，使用操作系统支持的非阻塞 I/O 来提供异步支持是最理想的方式， 这也是 Tornado 的核心工作原理。</p>
+<p>由于 Tornado 工作模型的原因，通过异步库（指由系统级非阻塞 I/O 来提供支持的库）来处理 I/O 密集型操作才是 Tornado 的正确工作方式，否则一个任务出现阻塞（或者执行时间过长）就会导致其他请求不能被及时处理。遇上没有异步库支持的 I/O 操作（比如磁盘 I/O 操作，Linux 不能很好地提供异步支持）以及 CPU 密集型操作，在 Tornado 中一般我们可以简单地用下面两种方式进行处理：</p>
+<ol>
+<li>将阻塞操作委托给 futures 模块的 ThreadPoolExecutor/ProcessPoolExecutor 去执行；</li>
+<li>使用 tornado + celery（RabbitMQ 或 Redis 做 Broker，<a href="https://pypi.python.org/pypi/totoro" target="_blank" rel="noopener">totoro</a>我个人弄的一个 tornado+celery 适配库，支持 RabbitMQ 和 Redis），将阻塞操作委托给 celery 执行。</li>
+</ol>
+<p>NOTE：python2 需要单独安装 futures 模块（pip install futures），python3 自带不需要单独安装。</p>
+<p>这篇笔记主要是记录在使用 ProcessPoolExecutor 去执行时遇到的一些问题和最终解决方法。</p>
+<h3 id="ThreadPoolExecutor-ProcessPoolExecutor"><a href="#ThreadPoolExecutor-ProcessPoolExecutor" class="headerlink" title="ThreadPoolExecutor/ProcessPoolExecutor"></a>ThreadPoolExecutor/ProcessPoolExecutor</h3><h4 id="如何选择-ThreadPoolExecutor-和-ProcessPoolExecutor"><a href="#如何选择-ThreadPoolExecutor-和-ProcessPoolExecutor" class="headerlink" title="如何选择 ThreadPoolExecutor 和 ProcessPoolExecutor"></a>如何选择 ThreadPoolExecutor 和 ProcessPoolExecutor</h4><p>由于 Python GIL 的原因，利用多线程（“单进程，多线程”） 去处理 CPU 密集型任务并不能有效地利用多核，提高性能。在处理 I/O 密集型任务时，由于遇到 I/O 阻塞时线程会主动释放 GIL，多线程才能明显提高性能。</p>
+<p>基于上述原因，在 Tornado 中区分一个任务是 CPU 密集型还是 I/O 密集型很重要，前者选择 ProcessPoolExecutor，后者选择 ThreadPoolExecutor 理论上是正确的。</p>
+<a id="more"></a>
+<h4 id="使用-ThreadPoolExecutor"><a href="#使用-ThreadPoolExecutor" class="headerlink" title="使用 ThreadPoolExecutor"></a>使用 ThreadPoolExecutor</h4><p>下面代码使用 ThreadPoolExecutor 来执行一个阻塞操作 <code>sleep()</code>。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"><span class="comment"># -*- coding: utf-8 -*-</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> __future__ <span class="keyword">import</span> absolute_import, division, print_function, with_statement</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> time</span><br><span class="line"><span class="keyword">import</span> tornado.web</span><br><span class="line"><span class="keyword">import</span> tornado.ioloop</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> concurrent.futures <span class="keyword">import</span> ThreadPoolExecutor</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MockSyncOptHandler</span><span class="params">(tornado.web.RequestHandler)</span>:</span></span><br><span class="line">	executor = ThreadPoolExecutor(<span class="number">2</span>)</span><br><span class="line">    io_loop = tornado.ioloop.IOLoop.current()</span><br><span class="line"></span><br><span class="line"><span class="meta">    @tornado.gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">get</span><span class="params">(self)</span>:</span></span><br><span class="line">    	sec = <span class="keyword">yield</span> self.sleep()</span><br><span class="line">        self.write(<span class="string">"sleep %s s"</span> % sec)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @run_on_executor</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">sleep</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="comment"># mock blocking operation</span></span><br><span class="line">        sec = <span class="number">10</span></span><br><span class="line">        time.sleep(sec)</span><br><span class="line">        <span class="keyword">return</span> sec</span><br></pre></td></tr></table></figure>
+<p>方法 <code>sleep()</code> 模拟一个阻塞 10 秒的操作，通过 <code>@run_on_executor</code> 装饰后便将方法将委托给 <code>executor</code> 执行，在执行完成后通过 <code>io_loop</code> 回调获取结果。如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">run_on_executor</span><span class="params">(fn)</span>:</span></span><br><span class="line">    <span class="string">"""Decorator to run a synchronous method asynchronously on an executor.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The decorated method may be called with a ``callback`` keyword</span></span><br><span class="line"><span class="string">    argument and returns a future.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    This decorator should be used only on methods of objects with attributes</span></span><br><span class="line"><span class="string">    ``executor`` and ``io_loop``.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line"><span class="meta">    @functools.wraps(fn)</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wrapper</span><span class="params">(self, *args, **kwargs)</span>:</span></span><br><span class="line">        callback = kwargs.pop(<span class="string">"callback"</span>, <span class="literal">None</span>)</span><br><span class="line">        future = self.executor.submit(fn, self, *args, **kwargs)</span><br><span class="line">        <span class="keyword">if</span> callback:</span><br><span class="line">            self.io_loop.add_future(future,</span><br><span class="line">                                    <span class="keyword">lambda</span> future: callback(future.result()))</span><br><span class="line">        <span class="keyword">return</span> future</span><br><span class="line">    <span class="keyword">return</span> wrapper</span><br></pre></td></tr></table></figure>
+<p><code>@run_on_executor</code> 提供了一种兼容 coroutine  和 callback 的模式，从这个角度来讲，我个人不是很推崇。在使用 coroutine 编程的情况，直接使用 <code>executor</code> 更直观，约束也更少（要求对象 <code>executor</code> 和 <code>io_loop</code> 属性）。如下代码所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"><span class="comment"># -*- coding: utf-8 -*-</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> __future__ <span class="keyword">import</span> absolute_import, division, print_function, with_statement</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> time</span><br><span class="line"><span class="keyword">import</span> tornado.web</span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> concurrent.futures <span class="keyword">import</span> ThreadPoolExecutor</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MockSyncOptHandler</span><span class="params">(tornado.web.RequestHandler)</span>:</span></span><br><span class="line">	executor = ThreadPoolExecutor(<span class="number">2</span>)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @tornado.gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">get</span><span class="params">(self)</span>:</span></span><br><span class="line">    	sec = <span class="keyword">yield</span> executor.executor.submit(self.sleep)</span><br><span class="line">        self.write(<span class="string">"sleep %s s"</span> % sec)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">sleep</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="comment"># mock blocking operation</span></span><br><span class="line">        sec = <span class="number">10</span></span><br><span class="line">        time.sleep(sec)</span><br><span class="line">        <span class="keyword">return</span> sec</span><br></pre></td></tr></table></figure>
+<h4 id="使用-ProcessPoolExecutor"><a href="#使用-ProcessPoolExecutor" class="headerlink" title="使用 ProcessPoolExecutor"></a>使用 ProcessPoolExecutor</h4><p>因为之前都是使用 <code>ThreadPoolExecutor</code> ，在项目中没有使用过 <code>ProcessPoolExecutor</code> ，想当然的就以为前面代码将 <code>ThreadPoolExecutor</code> 改为 <code>ProcessPoolExecutor</code> 就行。结果实践时便发生了一些问题，还由于混杂着其他问题，导致定位问题花费了我不少时间。过程就略过不提，直接说问题：</p>
+<ol>
+<li>发生 PicklingError 异常；</li>
+<li><code>ProcessPoolExecutor</code> 启动的子进程在 Tornado 重启时成了 “孤儿进程”。</li>
+</ol>
+<p>先说第一个问题，进程之间通信时，对象（数据）的传输需要序列化，在 Python 中对象序列化常用的方式是 Pickle。<code>ProcessPoolExecutor</code> 内部使用 multiprocessing 模块来提供多进程支持，与 <code>ThreadPoolExecutor</code> 相比便要求执行的函数及其参数能够 Pickable。参考 Pickle 模块的文档，在 python 中能够可 Pickable 的类型为：</p>
+<ol>
+<li>None, True, and False</li>
+<li>integers, long integers, floating point numbers, complex numbers</li>
+<li>normal and Unicode strings</li>
+<li>tuples, lists, sets, and dictionaries containing only picklable objects</li>
+<li>functions defined at the top level of a module</li>
+<li>built-in functions defined at the top level of a module</li>
+<li>classes that are defined at the top level of a module</li>
+<li>instances of such classes whose <strong>dict</strong> or the result of calling <strong>getstate</strong>() is picklable (see section The pickle protocol for details)</li>
+</ol>
+<p>简单来说就是基本类型和模块级的函数及类，很显然不支持 bound 和 unbound method（<a href="http://bugs.python.org/issue9276）。这个问题在" target="_blank" rel="noopener">http://bugs.python.org/issue9276）。这个问题在</a> python3 中已经得到解决：PEP-3154。<br><img src="/2015/12/10/ProcessPoolExecutor_In_Tornado/pep_3154.png"><br>在 stackoverflow 有一些讨论可供参考：<br><a href="http://stackoverflow.com/questions/1816958/cant-pickle-type-instancemethod-when-using-pythons-multiprocessing-pool-ma" target="_blank" rel="noopener">http://stackoverflow.com/questions/1816958/cant-pickle-type-instancemethod-when-using-pythons-multiprocessing-pool-ma</a><br><a href="http://stackoverflow.com/questions/7016567/picklingerror-when-using-multiprocessing" target="_blank" rel="noopener">http://stackoverflow.com/questions/7016567/picklingerror-when-using-multiprocessing</a></p>
+<p>有了上面的解释便很容易理解第一个问题发生的原因：<code>self.sleep()</code> 是一个 bound method ，是不能被 Pickle 的，所以不能使用 <code>ProcessPoolExecutor</code> 去执行。若要使用 <code>ProcessPoolExecutor</code> ，可以将其改为模块级函数。</p>
+<p>对于第二个问题，产生 “孤儿进程” 有几种情况：</p>
+<ol>
+<li><p>在 debug=True 模式下，Tornado 默认会启用 autoreload 机制，该机制会在应用程序的 Python 代码发生变化时自动通过 exec 重新加载代码。此时，由于 <code>ProcessPoolExecutor</code> 的子进程是 fork 出来的（可简单理解为父进程的拷贝），主进程通过 exec 重新加载代码时会遇到端口被（子进程）占用而无法重启并异常退出，导致这些子进程被 init 接管成为 “孤儿进程”。</p>
+</li>
+<li><p>另一种情况下，通过 supervisor 来管理 Tornado 进程，没有设置 stopasgroup=true/killasgroup=true，导致通过 supervisor 来停止应用时只有主进程能收到停止信号而退出，子进程便成了 “孤儿进程”。</p>
+</li>
+<li><p>还有一种情况是主进程注册了停止信号处理函数，fork 的子进程会默认继承父进程的信号处理函数。若停止信号处理函数没有考虑到这个问题，导致主进程能正常退出，子进程却忽略停止信号。比如我个人项目中为了尽可能不影响请求处理过程会为 Tornado 主进程注册停止信号处理函数，该函数首先停止接受新的请求，然后在一段时间内循环检测 IOLoop 中是否还有未处理的回调（包括定时回调），没有就主动退出，否则等待该段时间后强制退出。这个检测过程本身又是依赖 IOLoop 的定时回调。这样的逻辑在主进程中没有问题，但是子进程中由于 COW 的 IOLoop 是个拷贝，本身没有运行，故导致子进程无法像主进程一样循环检测并退出。单进程运行 Tornado 时没有问题，一旦使用了子进程便出现 “孤儿进程” 的问题。</p>
+</li>
+</ol>
+<p>NOTE: 一些关于进程退出的知识点：</p>
+<ol>
+<li><p>在 Linux 中守护进程（无关联控制终端，既是会话首进程又是进程组组长）被 kill 时会向该组每个进程发送 SIGHUP ，导致组中进程被中止。</p>
+</li>
+<li><p>普通会话首进程被 kill 时向前台进程组所有进程发送 SIGHUP 信号，导致前台进程组进程终止，但后台进程组不受影响；在终端中 ctrl+c/delete 会前台进程组所有进程发送中断信号。</p>
+</li>
+<li><p>一般进程（包括进程组组长）被 kill 时不影响所属进程组的其他进程，若是进程组组长进程被 kill，则子进程由 init 接管。</p>
+</li>
+<li><p>更多关于进程的退出的信息，请通过 Linux 进程组、会话、终端等相关知识来了解。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+              <a href="/tags/tornado/" rel="tag"># tornado</a>
+            
+              <a href="/tags/ioloop/" rel="tag"># ioloop</a>
+            
+              <a href="/tags/futures/" rel="tag"># futures</a>
+            
+              <a href="/tags/ThreadPoolExecutor/" rel="tag"># ThreadPoolExecutor</a>
+            
+              <a href="/tags/ProcessPoolExecutor/" rel="tag"># ProcessPoolExecutor</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/11/02/tornado.http1connection.HTTP1Connection/" rel="next" title="tornado.http1connection.HTTP1Connection 消息解析实现">
+                  <i class="fa fa-chevron-left"></i> tornado.http1connection.HTTP1Connection 消息解析实现
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2016/01/14/Linux Daemon Processes/" rel="prev" title="Linux 守护进程">
+                  Linux 守护进程 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#背景"><span class="nav-number">1.</span> <span class="nav-text">背景</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#ThreadPoolExecutor-ProcessPoolExecutor"><span class="nav-number">2.</span> <span class="nav-text">ThreadPoolExecutor/ProcessPoolExecutor</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#如何选择-ThreadPoolExecutor-和-ProcessPoolExecutor"><span class="nav-number">2.1.</span> <span class="nav-text">如何选择 ThreadPoolExecutor 和 ProcessPoolExecutor</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#使用-ThreadPoolExecutor"><span class="nav-number">2.2.</span> <span class="nav-text">使用 ThreadPoolExecutor</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#使用-ProcessPoolExecutor"><span class="nav-number">2.3.</span> <span class="nav-text">使用 ProcessPoolExecutor</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

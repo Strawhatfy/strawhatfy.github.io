@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="计算掉落概率在游戏中经常遇到按一定的掉落概率来随机掉落指定物品的情况，例如按照：钻石10%，金币20%，银币50%，饰品10%，装备10% 来计算掉落物品的类型。 通常的做法是将物品掉落概率（或者权重）变成一个离散的列表，随后产生一个随机数，再在列表中找到第一个大于该随机数的数，这个数对应的下标也就是对应的物品类型。 对应前面的例子，第一步会构建一个列表 [0.1, 0.3, 0.8, 0.9,">
+<meta name="keywords" content="C#,python,掉落概率,Alias Method">
+<meta property="og:type" content="article">
+<meta property="og:title" content="计算掉落概率">
+<meta property="og:url" content="http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="计算掉落概率在游戏中经常遇到按一定的掉落概率来随机掉落指定物品的情况，例如按照：钻石10%，金币20%，银币50%，饰品10%，装备10% 来计算掉落物品的类型。 通常的做法是将物品掉落概率（或者权重）变成一个离散的列表，随后产生一个随机数，再在列表中找到第一个大于该随机数的数，这个数对应的下标也就是对应的物品类型。 对应前面的例子，第一步会构建一个列表 [0.1, 0.3, 0.8, 0.9,">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/alias.jpg">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.350Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="计算掉落概率">
+<meta name="twitter:description" content="计算掉落概率在游戏中经常遇到按一定的掉落概率来随机掉落指定物品的情况，例如按照：钻石10%，金币20%，银币50%，饰品10%，装备10% 来计算掉落物品的类型。 通常的做法是将物品掉落概率（或者权重）变成一个离散的列表，随后产生一个随机数，再在列表中找到第一个大于该随机数的数，这个数对应的下标也就是对应的物品类型。 对应前面的例子，第一步会构建一个列表 [0.1, 0.3, 0.8, 0.9,">
+<meta name="twitter:image" content="http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/alias.jpg">
+  <link rel="canonical" href="http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>计算掉落概率 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">计算掉落概率
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-09-28 18:00:21" itemprop="dateCreated datePublished" datetime="2015-09-28T18:00:21+08:00">2015-09-28</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/编程基础/" itemprop="url" rel="index"><span itemprop="name">编程基础</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="计算掉落概率"><a href="#计算掉落概率" class="headerlink" title="计算掉落概率"></a>计算掉落概率</h4><p>在游戏中经常遇到按一定的掉落概率来随机掉落指定物品的情况，例如按照：钻石10%，金币20%，银币50%，饰品10%，装备10% 来计算掉落物品的类型。</p>
+<p>通常的做法是将物品掉落概率（或者权重）变成一个离散的列表，随后产生一个随机数，再在列表中找到第一个大于该随机数的数，这个数对应的下标也就是对应的物品类型。</p>
+<p>对应前面的例子，第一步会构建一个列表 [0.1, 0.3, 0.8, 0.9, 1.0] ；第二步生成一个随机数 0.56（假设）；第三步在列表中查找到第一个大于 0.56 的数是 0.8，下标为 2，此时掉落物品应该为银币。</p>
+<p>这种算法比较直观，理解和实现起来也比较容易。很多时候甚至都不需要预先构建列表，而是每次累加概率直到找打大于随机数的那个数的下标。但是运用这个算法的时候，第三步我们往往使用的是顺序查找，这在掉落类型较多的时候确实不怎么好。当然大多数情况类型的种类并不是一个很大的数，所以其实也没有影响。（后面实现时候采用二分查找）</p>
+<p>在上周的技术交流会时，同事提到了一个掉落概率算法 Alias Method，这个算法比较有意思，实现的很巧妙。算法的论文在这里：<a href="http://www.keithschwarz.com/darts-dice-coins/" target="_blank" rel="noopener">《Darts, Dice, and Coins: Sampling from a Discrete Distribution》</a></p>
+<p>(<strong>以下引用自 <a href="http://www.cnblogs.com/younggun/p/3249772.html" target="_blank" rel="noopener">《抽奖概率-三种算法》</a></strong>)<br>Alias Method 算法大概是这么做的：把 N 种可能性拼装成一个方形（整体），分成 N 列，每列高度为 1 且最多 2 种可能性。可能性抽象为某种颜色，即每列最多有 2 种颜色，且第 n 列中必有第 n 种可能性，这里将第 n 种可能性称为原色。 想象抛出一个硬币，会落在其中一列，并且是落在列上的一种颜色。这样就得到两个数组：一个记录落在原色的概率是多少，记为 Prob 数组，另一个记录列上非原色的颜色名称，记为 Alias 数组，若该列只有原色则记为 null。</p>
+<p>为了直接用网上的图片，我把前面例子的掉落概率依次改为 1/4, 1/5, 1/10, 1/20, 2/5。</p>
+<img src="/2015/09/28/two_algorithms_for_drop_probability/alias.jpg">
+<p>由上图方形可得到两个数组： Prob: [3/4, 1/4, 1/2, 1/4, 1] Alias: [4, 4, 0, 1, null] (记录非原色的下标)。之后就根据 Prob 和 Alias 获取其中一个物品，随机产生一列 C，再随机产生一个数 R，通过与Prob[C] 比较，R 较大则返回 C，反之返回 Alias[C]。</p>
+<h4 id="Alias-Method-算法"><a href="#Alias-Method-算法" class="headerlink" title="Alias Method 算法"></a>Alias Method 算法</h4><p>算法论文中已经有了一个 <a href="http://www.keithschwarz.com/interesting/code/?dir=alias-method" target="_blank" rel="noopener">java 的版本</a>，这里我就按照作者 java 实现 “翻译” 了 python 和 C# 版本。<br><a id="more"></a></p>
+<h5 id="python-版本"><a href="#python-版本" class="headerlink" title="python 版本"></a>python 版本</h5><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"><span class="comment"># -*- coding: utf-8 -*-</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> __future__ <span class="keyword">import</span> division</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> random</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AliasMethod4Sample</span><span class="params">(object)</span>:</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, probabilities_or_weights)</span>:</span></span><br><span class="line">        <span class="keyword">assert</span> probabilities_or_weights <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span></span><br><span class="line">        <span class="keyword">assert</span> isinstance(probabilities_or_weights, (list, tuple))</span><br><span class="line"></span><br><span class="line">        self._probabilities_or_weights = probabilities_or_weights</span><br><span class="line">        self._alias = [<span class="literal">None</span>] * len(probabilities_or_weights)</span><br><span class="line"></span><br><span class="line">        total = sum(probabilities_or_weights)</span><br><span class="line">        self._probabilities = map(<span class="keyword">lambda</span> x: x/total, probabilities_or_weights)</span><br><span class="line"></span><br><span class="line">        self.__preprocess()</span><br><span class="line"></span><br><span class="line"><span class="meta">    @property</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">probabilities_or_weights</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> tuple(self._probabilities_or_weights)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @property</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">probabilities</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> tuple(self._probabilities)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @property</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">alias</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> tuple(self._alias)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__preprocess</span><span class="params">(self)</span>:</span></span><br><span class="line">        average = <span class="number">1.0</span> / len(self._probabilities)</span><br><span class="line">        small = []</span><br><span class="line">        large = []</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> index, val <span class="keyword">in</span> enumerate(self._probabilities):</span><br><span class="line">            <span class="keyword">if</span> val &gt;= average:</span><br><span class="line">                large.append(index)</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">                small.append(index)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">while</span> small <span class="keyword">and</span> large:</span><br><span class="line">            less = small.pop()</span><br><span class="line">            more = large.pop()</span><br><span class="line"></span><br><span class="line">            self._probabilities[more] = self._probabilities[more] + self._probabilities[less] - average</span><br><span class="line">            <span class="comment"># 为已经预处理好的颜色设置 `原色` 的概率和对应的 `非原色`</span></span><br><span class="line">            self._probabilities[less] = self._probabilities[less] * len(self._probabilities)</span><br><span class="line">            self._alias[less] = more</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> self._probabilities[more] &gt;= average:</span><br><span class="line">                large.append(more)</span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">                small.append(more)</span><br><span class="line"></span><br><span class="line">        <span class="keyword">while</span> small:</span><br><span class="line">            self._probabilities[small.pop()] = <span class="number">1.0</span></span><br><span class="line"></span><br><span class="line">        <span class="keyword">while</span> large:</span><br><span class="line">            self._probabilities[large.pop()] = <span class="number">1.0</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">next</span><span class="params">(self)</span>:</span></span><br><span class="line">        current_index = random.randint(<span class="number">0</span>, len(self._probabilities) - <span class="number">1</span>)</span><br><span class="line">        current_number = random.random()</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> current_number &lt; self._probabilities[current_index]:</span><br><span class="line">            <span class="keyword">return</span> current_index</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">return</span> self._alias[current_index]</span><br></pre></td></tr></table></figure>
+<h5 id="C-版本"><a href="#C-版本" class="headerlink" title="C# 版本"></a>C# 版本</h5><figure class="highlight cs"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">AliasMethod4Sample</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">readonly</span> Random _random = <span class="keyword">new</span> Random();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Double[] ProbabilitiesOrWeights &#123; <span class="keyword">get</span>; <span class="keyword">private</span> <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Int32[] Alias &#123; <span class="keyword">get</span>; <span class="keyword">private</span> <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Double[] Probabilities &#123; <span class="keyword">get</span>; <span class="keyword">private</span> <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="title">AliasMethod4Sample</span>(<span class="params">ICollection&lt;Double&gt; probabilitiesOrWeights</span>)</span></span><br><span class="line"><span class="function"></span>        &#123;</span><br><span class="line">            <span class="keyword">if</span> (probabilitiesOrWeights == <span class="literal">null</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentNullException(<span class="string">"probabilitiesOrWeights"</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (probabilitiesOrWeights.Count == <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentException(<span class="string">"probabilitiesOrWeights is empty."</span>, <span class="string">"probabilitiesOrWeights"</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            ProbabilitiesOrWeights = probabilitiesOrWeights.ToArray();</span><br><span class="line">            Alias = <span class="keyword">new</span> Int32[ProbabilitiesOrWeights.Length];</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> sum = ProbabilitiesOrWeights.Sum();</span><br><span class="line">            Probabilities = ProbabilitiesOrWeights.Select(x =&gt; x/sum).ToArray();</span><br><span class="line"></span><br><span class="line">            Init();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> Int32 <span class="title">Next</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>        &#123;</span><br><span class="line">            <span class="keyword">var</span> index = _random.Next(<span class="number">0</span>, Probabilities.Length);</span><br><span class="line">            <span class="keyword">var</span> val = _random.NextDouble();</span><br><span class="line"></span><br><span class="line">            <span class="keyword">return</span> val &lt; Probabilities[index] ? index : Alias[index];</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">Init</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>        &#123;</span><br><span class="line">            <span class="keyword">var</span> average = <span class="number">1.0</span>/Probabilities.Length;</span><br><span class="line">            <span class="keyword">var</span> small = <span class="keyword">new</span> Queue&lt;Int32&gt;();</span><br><span class="line">            <span class="keyword">var</span> large = <span class="keyword">new</span> Queue&lt;Int32&gt;();</span><br><span class="line"></span><br><span class="line">            <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; Probabilities.Length; i++)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">if</span> (Probabilities[i] &gt;= average)</span><br><span class="line">                &#123;</span><br><span class="line">                    large.Enqueue(i);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">else</span></span><br><span class="line">                &#123;</span><br><span class="line">                    small.Enqueue(i);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">while</span> (small.Count &gt; <span class="number">0</span> &amp;&amp; large.Count &gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">var</span> less = small.Dequeue();</span><br><span class="line">                <span class="keyword">var</span> more = large.Dequeue();</span><br><span class="line"></span><br><span class="line">                Probabilities[more] = Probabilities[more] + Probabilities[less] - average;</span><br><span class="line">                Probabilities[less] = Probabilities[less]*Probabilities.Length;</span><br><span class="line">                Alias[less] = more;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">if</span> (Probabilities[more] &gt;= average)</span><br><span class="line">                &#123;</span><br><span class="line">                    large.Enqueue(more);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">else</span></span><br><span class="line">                &#123;</span><br><span class="line">                    small.Enqueue(more);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">while</span> (large.Count &gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                Probabilities[large.Dequeue()] = <span class="number">1.0</span>;</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">while</span> (small.Count&gt; <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                Probabilities[small.Dequeue()] = <span class="number">1.0</span>;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h4 id="常用的离散算法"><a href="#常用的离散算法" class="headerlink" title="常用的离散算法"></a>常用的离散算法</h4><p>常用的离散算法，第三步改为二分查找。</p>
+<h5 id="python-版本-1"><a href="#python-版本-1" class="headerlink" title="python 版本"></a>python 版本</h5><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"><span class="comment"># -*- coding: utf-8 -*-</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">from</span> __future__ <span class="keyword">import</span> division</span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> random</span><br><span class="line"><span class="keyword">import</span> bisect</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">DiscreteMethod4Sample</span><span class="params">(object)</span>:</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, probabilities_or_weights)</span>:</span></span><br><span class="line">        <span class="keyword">assert</span> probabilities_or_weights <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span></span><br><span class="line">        <span class="keyword">assert</span> isinstance(probabilities_or_weights, (list, tuple))</span><br><span class="line"></span><br><span class="line">        total = sum(probabilities_or_weights)</span><br><span class="line">        discrete_table = []</span><br><span class="line">        <span class="keyword">for</span> pw <span class="keyword">in</span> probabilities_or_weights:</span><br><span class="line">            <span class="keyword">if</span> discrete_table:</span><br><span class="line">                discrete_table.append((discrete_table[<span class="number">-1</span>] + pw)/total) </span><br><span class="line">            <span class="keyword">else</span>:</span><br><span class="line">                discrete_table.append(pw/total)</span><br><span class="line"></span><br><span class="line">        self._discrete_table = discrete_table</span><br><span class="line">        self._probabilities_or_weights = probabilities_or_weights</span><br><span class="line"></span><br><span class="line"><span class="meta">    @property</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">discrete_table</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> tuple(self._discrete_table)</span><br><span class="line"></span><br><span class="line"><span class="meta">    @property</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">probabilities_or_weights</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> tuple(self._probabilities_or_weights)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">next</span><span class="params">(self)</span>:</span></span><br><span class="line">        current_probability = random.random()</span><br><span class="line">        <span class="keyword">return</span> bisect.bisect_right(self._discrete_table, current_probability)</span><br></pre></td></tr></table></figure>
+<h5 id="C-版本-1"><a href="#C-版本-1" class="headerlink" title="C# 版本"></a>C# 版本</h5><figure class="highlight cs"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">class</span> <span class="title">DiscreteMethod4Sample</span></span><br><span class="line">    &#123;</span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">readonly</span> Random _random = <span class="keyword">new</span> Random();</span><br><span class="line">        <span class="keyword">private</span> <span class="keyword">readonly</span> List&lt;Double&gt; _discreteTable;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Double[] ProbabilitiesOrWeights &#123; <span class="keyword">get</span>; <span class="keyword">private</span> <span class="keyword">set</span>; &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">public</span> Double[] DiscreteTable</span><br><span class="line">        &#123;</span><br><span class="line">            <span class="keyword">get</span></span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">return</span> _discreteTable.ToArray();</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="title">DiscreteMethod4Sample</span>(<span class="params">ICollection&lt;Double&gt; probabilitiesOrWeights</span>)</span></span><br><span class="line"><span class="function"></span>        &#123;</span><br><span class="line">            <span class="keyword">if</span> (probabilitiesOrWeights == <span class="literal">null</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentNullException(<span class="string">"probabilitiesOrWeights"</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">if</span> (probabilitiesOrWeights.Count == <span class="number">0</span>)</span><br><span class="line">            &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> ArgumentException(<span class="string">"probabilitiesOrWeights is empty."</span>, <span class="string">"probabilitiesOrWeights"</span>);</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> rawProbabilitiesOrWeights = probabilitiesOrWeights.ToArray();</span><br><span class="line">            <span class="keyword">var</span> discreteTable = <span class="keyword">new</span> Double[probabilitiesOrWeights.Count];</span><br><span class="line"></span><br><span class="line">            discreteTable[<span class="number">0</span>] = rawProbabilitiesOrWeights[<span class="number">0</span>];</span><br><span class="line">            <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">1</span>; i &lt; rawProbabilitiesOrWeights.Length; i++)</span><br><span class="line">            &#123;</span><br><span class="line">                discreteTable[i] = discreteTable[i - <span class="number">1</span>] + rawProbabilitiesOrWeights[i];</span><br><span class="line">            &#125;</span><br><span class="line"></span><br><span class="line">            <span class="keyword">var</span> total = rawProbabilitiesOrWeights.Sum();</span><br><span class="line">            ProbabilitiesOrWeights = rawProbabilitiesOrWeights;</span><br><span class="line">            _discreteTable = discreteTable.Select(x =&gt; x/total).ToList();</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="function"><span class="keyword">public</span> Int32 <span class="title">Next</span>(<span class="params"></span>)</span></span><br><span class="line"><span class="function"></span>        &#123;</span><br><span class="line">            <span class="keyword">var</span> index = _discreteTable.BinarySearch(_random.NextDouble());</span><br><span class="line">            <span class="keyword">return</span> index &lt; <span class="number">0</span> ? ~index : index;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/C/" rel="tag"># C#</a>
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+              <a href="/tags/掉落概率/" rel="tag"># 掉落概率</a>
+            
+              <a href="/tags/Alias-Method/" rel="tag"># Alias Method</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/09/27/tornado.iostream/" rel="next" title="tornado.iostream 模块解析">
+                  <i class="fa fa-chevron-left"></i> tornado.iostream 模块解析
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/10/12/tornado.util.Configurable/" rel="prev" title="tornado.util.Configurable">
+                  tornado.util.Configurable <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#计算掉落概率"><span class="nav-number">1.</span> <span class="nav-text">计算掉落概率</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Alias-Method-算法"><span class="nav-number">2.</span> <span class="nav-text">Alias Method 算法</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#python-版本"><span class="nav-number">2.1.</span> <span class="nav-text">python 版本</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#C-版本"><span class="nav-number">2.2.</span> <span class="nav-text">C# 版本</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#常用的离散算法"><span class="nav-number">3.</span> <span class="nav-text">常用的离散算法</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#python-版本-1"><span class="nav-number">3.1.</span> <span class="nav-text">python 版本</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#C-版本-1"><span class="nav-number">3.2.</span> <span class="nav-text">C# 版本</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

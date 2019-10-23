@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="守护进程介绍本笔记内容主要参考自：《Advanced Programming in The Unix Environment 3rd edition》 第 13 章第 3 小节。 守护进程是一类长时间运行的进程，一般随操作系统启动运行直到系统关闭而停止（也可以由 crond 启动，或者由用户终端 Shell 启动）。因为没有关联的控制终端，所以我们称其在后台运行，这也是守护进程最重要的特性。另一个">
+<meta name="keywords" content="Deamon,守护进程,fork,umask,python">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Linux 守护进程">
+<meta property="og:url" content="http://yoursite.com/2016/01/14/Linux Daemon Processes/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="守护进程介绍本笔记内容主要参考自：《Advanced Programming in The Unix Environment 3rd edition》 第 13 章第 3 小节。 守护进程是一类长时间运行的进程，一般随操作系统启动运行直到系统关闭而停止（也可以由 crond 启动，或者由用户终端 Shell 启动）。因为没有关联的控制终端，所以我们称其在后台运行，这也是守护进程最重要的特性。另一个">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.322Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Linux 守护进程">
+<meta name="twitter:description" content="守护进程介绍本笔记内容主要参考自：《Advanced Programming in The Unix Environment 3rd edition》 第 13 章第 3 小节。 守护进程是一类长时间运行的进程，一般随操作系统启动运行直到系统关闭而停止（也可以由 crond 启动，或者由用户终端 Shell 启动）。因为没有关联的控制终端，所以我们称其在后台运行，这也是守护进程最重要的特性。另一个">
+  <link rel="canonical" href="http://yoursite.com/2016/01/14/Linux Daemon Processes/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>Linux 守护进程 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/01/14/Linux Daemon Processes/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">Linux 守护进程
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2016-01-14 15:00:00" itemprop="dateCreated datePublished" datetime="2016-01-14T15:00:00+08:00">2016-01-14</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/服务端基础/" itemprop="url" rel="index"><span itemprop="name">服务端基础</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="守护进程介绍"><a href="#守护进程介绍" class="headerlink" title="守护进程介绍"></a>守护进程介绍</h4><p><strong><em>本笔记内容主要参考自：《Advanced Programming in The Unix Environment 3rd edition》 第 13 章第 3 小节。</em></strong></p>
+<p>守护进程是一类长时间运行的进程，一般随操作系统启动运行直到系统关闭而停止（也可以由 crond 启动，或者由用户终端 Shell 启动）。因为没有关联的控制终端，所以我们称其在后台运行，这也是守护进程最重要的特性。另一个重要的特性是守护进程必须与其运行前的环境隔离开。参考 《Advanced Programming in The Unix Environment》 第 13 章内容，编程实现守护进程有一些通用的设计规范。</p>
+<h4 id="守护进程编码设计规范"><a href="#守护进程编码设计规范" class="headerlink" title="守护进程编码设计规范"></a>守护进程编码设计规范</h4><p>这里将介绍一些编码规范，这些规范将阻止守护进程与其运行前环境产生一些不必要的交互。</p>
+<ol>
+<li><p>Call umask to set the file mode creation mask to a known value, usually 0. The inherited file mode creation mask could be set to deny certain permissions. If the daemon process creates files, it may want to set specific permissions. For example, if it creates files with group-read and group-write enabled, a file mode creation mask that turns off either of these permissions would undo its efforts. On the other hand, if the daemon calls library functions that result in files being created, then it might make sense to set the file mode create mask to a more restrictive value (such as 007), since the library functions might not allow the caller to specify the permissions through an explicit argument.</p>
+<p> 调用 umask 将文件创建掩码设置为一个值，通常是 0 。因为守护进程从父进程继承而来的 “文件创建掩码” 可能会屏蔽某些特定的文件操作权限。如果守护进程想要创建文件，那么便需要设置特定的文件操作权限。例如，守护进程想要创建允许用户组读和写权限的文件，继承而来的 “文件创建掩码” 屏蔽了这个权限，则创建操作不会成功。另一方面，如果后台进程调用的库函数会创建文件，但是库函数又不允许调用者通过一个明确的参数来指定文件的权限，为了安全起见将 “文件创建掩码” 设置为一个更严格的值（比如 007 ）是非常有意义和必要的。(<strong>注：默认情况下的 umask 值是 022 (可以用 umask 命令查看），此时你建立的文件默认权限是 644 (6-0,6-2,6-2)，建立的目录的默认权限是 755 (7-0,7-2,7-2)。使用 umask(0) 修改 “文件创建掩码” ，保证进程拥有文件的读写权限，这个操作很危险将导致新建的文件权限为 0666/world-writable 。这个操作通常用于文件创建者和修改者不是同一个用户的场景，比如：你需要创建一个文件，该文件后续会被 Web Server 修改，而 Web Server 使用的是另外一个用户运行。这种情况下为 Web Server 写文件的目录 Set Group ID（） 是个不错的选择。</strong>)</p>
+</li>
+<li><p>Call fork and have the parent exit. This does several things. First, if the daemon was started as a simple shell command, having the parent terminate makes the shell think that the command is done. Second, the child inherits the process group ID of the parent but gets a new process ID, so we’re guaranteed that the child is not a process group leader. This is a prerequisite for the call to setsid that is done next.</p>
+<p> 调用 fork 创建子进程并使父进程退出，将守护进程放入后台运行。这个操作主要有两个目的。首先，如果守护进程是通过一个简单的 Shell 命令创建的，那么父进程结束时便会让 Shell 一并将守护进程也结束（<strong>注：在终端中 ctrl+c/delete 会向前台进程组所有进程发送中断信号，若父进程退出那么子进程便会被 init 进程接管进入后台运行。</strong>）；其次，子进程继承得到父进程的 “进程组ID” 同时也获得了一个新的进程号，这样便能保证子进程不是 “进程组组长” ，这是下一步 setsid 操作的前提（<strong>注：只有当前进程不是进程组组长时，才能调用 setsid 创建新会话。</strong>）。</p>
+</li>
+<li><p>Call setsid to create a new session. The three steps listed in Section 9.5 occur.The process (a) becomes the leader of a new session, (b) becomes the leader of a new process group, and (c) is disassociated from its controlling terminal.</p>
+<p> 调用 setsid 创建一个新会话，这个调用实际会执行 3 个操作：(a) 使当前进程称为新会话的 “会话首进程”；(b) 使当前进程称为新 “进程组组长”；(c) 使当前进程脱离控制终端。（<strong>注：第 2 个操作使当前进程进入后台运行，这个操作接着使进程脱离原来的进程组、控制终端和会话。</strong>）</p>
+<p> 在基于 System V 的系统中，有人建议再一次调用 fork 并使父进程退出，而新产生的进程将会成为真正的守护进程。这一步骤将保证守护进程不是一个 “会话首进程” ，进而阻止它重新申请获取一个控制终端。另外一种阻止守护进程重新申请获取控制终端的方法是任意时刻打开一个终端设备的时候明确指定 O_NOCTTY 标识（<strong>注：调用 open() 函数打开文件时，若文件是一个终端，指定 O_NOCTTY 标识后便不会让此终端成为该进程的控制终端。 </strong>） 。</p>
+</li>
+<li><p>Change the current working directory to the root directory. The current working directory inherited from the parent could be on a mounted file system. Since daemons normally exist until the system is rebooted, if the daemon stays on a mounted file system, that file system cannot be unmounted.</p>
+<p> Alternatively, some daemons might change the current working directory to a specific location where they will do all their work. For example, a line printer spooling daemon might change its working directory to its spool directory.</p>
+<p> 将当前工作目录切换到系统目录下。这是因为继承自父进程的当前工作目录可能是一个挂载的文件系统，而守护进程通常会一直运行到系统重启。如果守护进程工作在一个挂载的文件系统上，那么这个文件系统便不能被卸载。</p>
+<p> 另外，有些守护进程会把当前工作目录切换到特定的路径下，并在这些路径下完成它们的工作。例如，行式打印机守护进程通常会将当前工作目录切换到 spool 目录。</p>
+</li>
+<li><p>Unneeded file descriptors should be closed. This prevents the daemon from holding open any descriptors that it may have inherited from its parent (which could be a shell or some other process). We can use our open_max function (Figure 2.17) or the getrlimit function (Section 7.11) to determine the highest descriptor and close all descriptors up to that value.</p>
+<p> 关闭不必要的文件描述符。这将阻止守护进程保持任何从父进程（Shell 或者其他进程）进程而来的文件描述符。我们可以使用 open_max 或 getrlimit 函数来查找当前优先级最高的文件描述符并关闭此描述符之下的所有其他描述符。（<strong>注：保持打开的文件描述符将会占用系统资源并使某系文件不能被卸载。</strong>）</p>
+</li>
+<li><p>Some daemons open file descriptors 0, 1, and 2 to /dev/null so that any library routines that try to read from standard input or write to standard output or standard error will have no effect. Since the daemon is not associated with a terminal device, there is nowhere for output to be displayed, nor is there anywhere to receive input from an interactive user. Even if the daemon was started from an interactive session, the daemon runs in the background, and the login session can terminate without affecting the daemon. If other users log in on the same terminal device, we wouldn’t want output from the daemon showing up on the terminal, and the users wouldn’t expect their input to be read by the daemon.</p>
+<p> 有些守护进程会将标准输入、标准输出、标准错误描述符重定向到 /dev/null，这样一来任何尝试从标准输入、标准输出或者标准错误读取守护进程信息的操作都会失败。因为守护进程不与任何终端设备关联，便没有地方显示输出或者接受用户输入。即使守护进程是由一个交互式会话创建，但由于其在后台运行，便不会受登录会话结束的影响；如果有其他用户通过当前终端登录，我们也不希望守护进程的输出出现在终端上，并且该用户的任何输入也不会被守护进程接收。</p>
+</li>
+<li><p>（<strong>注：引用自 <a href="http://www.cnblogs.com/mickole/p/3188321.html" target="_blank" rel="noopener">《linux系统编程之进程（八）：守护进程详解及创建，daemon()使用》</a></strong>）处理 SIGCHLD 信号。这不是一个必须的操作，但对于某些进程，特别是服务器进程（守护进程）往往在请求到来时生成子进程处理请求。如果父进程不等待子进程结束，子进程将成为僵尸进程（zombie ）从而占用系统资源。如果父进程等待子进程结束，将增加父进程的负担，影响服务器进程的并发性能。在 Linux 下可以简单地将SIGCHLD 信号的操作设为 SIG_IGN： <code>signal(SIGCHLD,SIG_IGN)</code>。这样，内核在子进程结束时不会产生僵尸进程。这一点与 BSD4 不同，BSD4 下必须显式等待子进程结束才能释放僵尸进程。</p>
+</li>
+</ol>
+<a id="more"></a>
+<h4 id="使用-Python-实现守护进程"><a href="#使用-Python-实现守护进程" class="headerlink" title="使用 Python 实现守护进程"></a>使用 Python 实现守护进程</h4><p>以下 Python2.x 代码引用自 <a href="http://www.jejik.com/articles/2007/02/a_simple_unix_linux_daemon_in_python/" target="_blank" rel="noopener">《A simple unix/linux daemon in Python》</a> ，作者文章中有兼容 Python 3 的代码下载。下面代码实现了一个守护进程基类，子类可以简单地继承并实现 <code>run()</code> 方法来在守护进程中工作。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> sys, os, time, atexit</span><br><span class="line"><span class="keyword">from</span> signal <span class="keyword">import</span> SIGTERM</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Daemon</span>:</span></span><br><span class="line">	<span class="string">"""</span></span><br><span class="line"><span class="string">	A generic daemon class.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">	Usage: subclass the Daemon class and override the run() method</span></span><br><span class="line"><span class="string">	"""</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, pidfile, stdin=<span class="string">'/dev/null'</span>, stdout=<span class="string">'/dev/null'</span>, stderr=<span class="string">'/dev/null'</span>)</span>:</span></span><br><span class="line">		self.stdin = stdin</span><br><span class="line">		self.stdout = stdout</span><br><span class="line">		self.stderr = stderr</span><br><span class="line">		self.pidfile = pidfile</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">daemonize</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="string">"""</span></span><br><span class="line"><span class="string">		do the UNIX double-fork magic, see Stevens' "Advanced</span></span><br><span class="line"><span class="string">		Programming in the UNIX Environment" for details (ISBN 0201563177)</span></span><br><span class="line"><span class="string">		http://www.erlenstar.demon.co.uk/unix/faq_2.html#SEC16</span></span><br><span class="line"><span class="string">		"""</span></span><br><span class="line">		<span class="keyword">try</span>:</span><br><span class="line">			pid = os.fork()</span><br><span class="line">			<span class="keyword">if</span> pid &gt; <span class="number">0</span>:</span><br><span class="line">				<span class="comment"># exit first parent</span></span><br><span class="line">				sys.exit(<span class="number">0</span>)</span><br><span class="line">		<span class="keyword">except</span> OSError, e:</span><br><span class="line">			sys.stderr.write(<span class="string">"fork #1 failed: %d (%s)\n"</span> % (e.errno, e.strerror))</span><br><span class="line">			sys.exit(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">		<span class="comment"># decouple from parent environment</span></span><br><span class="line">		os.chdir(<span class="string">"/"</span>)</span><br><span class="line">		os.setsid()</span><br><span class="line">		os.umask(<span class="number">0</span>)</span><br><span class="line"></span><br><span class="line">		<span class="comment"># do second fork</span></span><br><span class="line">		<span class="keyword">try</span>:</span><br><span class="line">			pid = os.fork()</span><br><span class="line">			<span class="keyword">if</span> pid &gt; <span class="number">0</span>:</span><br><span class="line">				<span class="comment"># exit from second parent</span></span><br><span class="line">				sys.exit(<span class="number">0</span>)</span><br><span class="line">		<span class="keyword">except</span> OSError, e:</span><br><span class="line">			sys.stderr.write(<span class="string">"fork #2 failed: %d (%s)\n"</span> % (e.errno, e.strerror))</span><br><span class="line">			sys.exit(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">		<span class="comment"># redirect standard file descriptors</span></span><br><span class="line">		sys.stdout.flush()</span><br><span class="line">		sys.stderr.flush()</span><br><span class="line">		si = file(self.stdin, <span class="string">'r'</span>)</span><br><span class="line">		so = file(self.stdout, <span class="string">'a+'</span>)</span><br><span class="line">		se = file(self.stderr, <span class="string">'a+'</span>, <span class="number">0</span>)</span><br><span class="line">		os.dup2(si.fileno(), sys.stdin.fileno())</span><br><span class="line">		os.dup2(so.fileno(), sys.stdout.fileno())</span><br><span class="line">		os.dup2(se.fileno(), sys.stderr.fileno())</span><br><span class="line"></span><br><span class="line">		<span class="comment"># write pidfile</span></span><br><span class="line">		atexit.register(self.delpid)</span><br><span class="line">		pid = str(os.getpid())</span><br><span class="line">		file(self.pidfile,<span class="string">'w+'</span>).write(<span class="string">"%s\n"</span> % pid)</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">delpid</span><span class="params">(self)</span>:</span></span><br><span class="line">		os.remove(self.pidfile)</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">start</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="string">"""</span></span><br><span class="line"><span class="string">		Start the daemon</span></span><br><span class="line"><span class="string">		"""</span></span><br><span class="line">		<span class="comment"># Check for a pidfile to see if the daemon already runs</span></span><br><span class="line">		<span class="keyword">try</span>:</span><br><span class="line">			pf = file(self.pidfile,<span class="string">'r'</span>)</span><br><span class="line">			pid = int(pf.read().strip())</span><br><span class="line">			pf.close()</span><br><span class="line">		<span class="keyword">except</span> IOError:</span><br><span class="line">			pid = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> pid:</span><br><span class="line">			message = <span class="string">"pidfile %s already exist. Daemon already running?\n"</span></span><br><span class="line">			sys.stderr.write(message % self.pidfile)</span><br><span class="line">			sys.exit(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">		<span class="comment"># Start the daemon</span></span><br><span class="line">		self.daemonize()</span><br><span class="line">		self.run()</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">stop</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="string">"""</span></span><br><span class="line"><span class="string">		Stop the daemon</span></span><br><span class="line"><span class="string">		"""</span></span><br><span class="line">		<span class="comment"># Get the pid from the pidfile</span></span><br><span class="line">		<span class="keyword">try</span>:</span><br><span class="line">			pf = file(self.pidfile,<span class="string">'r'</span>)</span><br><span class="line">			pid = int(pf.read().strip())</span><br><span class="line">			pf.close()</span><br><span class="line">		<span class="keyword">except</span> IOError:</span><br><span class="line">			pid = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">		<span class="keyword">if</span> <span class="keyword">not</span> pid:</span><br><span class="line">			message = <span class="string">"pidfile %s does not exist. Daemon not running?\n"</span></span><br><span class="line">			sys.stderr.write(message % self.pidfile)</span><br><span class="line">			<span class="keyword">return</span> <span class="comment"># not an error in a restart</span></span><br><span class="line"></span><br><span class="line">		<span class="comment"># Try killing the daemon process</span></span><br><span class="line">		<span class="keyword">try</span>:</span><br><span class="line">			<span class="keyword">while</span> <span class="number">1</span>:</span><br><span class="line">				os.kill(pid, SIGTERM)</span><br><span class="line">				time.sleep(<span class="number">0.1</span>)</span><br><span class="line">		<span class="keyword">except</span> OSError, err:</span><br><span class="line">			err = str(err)</span><br><span class="line">			<span class="keyword">if</span> err.find(<span class="string">"No such process"</span>) &gt; <span class="number">0</span>:</span><br><span class="line">				<span class="keyword">if</span> os.path.exists(self.pidfile):</span><br><span class="line">					os.remove(self.pidfile)</span><br><span class="line">			<span class="keyword">else</span>:</span><br><span class="line">				<span class="keyword">print</span> str(err)</span><br><span class="line">				sys.exit(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">restart</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="string">"""</span></span><br><span class="line"><span class="string">		Restart the daemon</span></span><br><span class="line"><span class="string">		"""</span></span><br><span class="line">		self.stop()</span><br><span class="line">		self.start()</span><br><span class="line"></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="string">"""</span></span><br><span class="line"><span class="string">		You should override this method when you subclass Daemon. It will be called after the process has been</span></span><br><span class="line"><span class="string">		daemonized by start() or restart().</span></span><br><span class="line"><span class="string">		"""</span></span><br></pre></td></tr></table></figure>
+<p>子类实现 <code>run()</code> 方法：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">#!/usr/bin/env python</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">import</span> sys, time</span><br><span class="line"><span class="keyword">from</span> daemon <span class="keyword">import</span> Daemon</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">MyDaemon</span><span class="params">(Daemon)</span>:</span></span><br><span class="line">	<span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self)</span>:</span></span><br><span class="line">		<span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">			time.sleep(<span class="number">1</span>)</span><br><span class="line"></span><br><span class="line"><span class="keyword">if</span> __name__ == <span class="string">"__main__"</span>:</span><br><span class="line">	daemon = MyDaemon(<span class="string">'/tmp/daemon-example.pid'</span>)</span><br><span class="line">	<span class="keyword">if</span> len(sys.argv) == <span class="number">2</span>:</span><br><span class="line">		<span class="keyword">if</span> <span class="string">'start'</span> == sys.argv[<span class="number">1</span>]:</span><br><span class="line">			daemon.start()</span><br><span class="line">		<span class="keyword">elif</span> <span class="string">'stop'</span> == sys.argv[<span class="number">1</span>]:</span><br><span class="line">			daemon.stop()</span><br><span class="line">		<span class="keyword">elif</span> <span class="string">'restart'</span> == sys.argv[<span class="number">1</span>]:</span><br><span class="line">			daemon.restart()</span><br><span class="line">		<span class="keyword">else</span>:</span><br><span class="line">			<span class="keyword">print</span> <span class="string">"Unknown command"</span></span><br><span class="line">			sys.exit(<span class="number">2</span>)</span><br><span class="line">		sys.exit(<span class="number">0</span>)</span><br><span class="line">	<span class="keyword">else</span>:</span><br><span class="line">		<span class="keyword">print</span> <span class="string">"usage: %s start|stop|restart"</span> % sys.argv[<span class="number">0</span>]</span><br><span class="line">		sys.exit(<span class="number">2</span>)</span><br></pre></td></tr></table></figure>
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/Deamon/" rel="tag"># Deamon</a>
+            
+              <a href="/tags/守护进程/" rel="tag"># 守护进程</a>
+            
+              <a href="/tags/fork/" rel="tag"># fork</a>
+            
+              <a href="/tags/umask/" rel="tag"># umask</a>
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/12/10/ProcessPoolExecutor_In_Tornado/" rel="next" title="ProcessPoolExecutor In Tornado">
+                  <i class="fa fa-chevron-left"></i> ProcessPoolExecutor In Tornado
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2016/01/19/tornado.web/" rel="prev" title="tornado.web 模块解析">
+                  tornado.web 模块解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#守护进程介绍"><span class="nav-number">1.</span> <span class="nav-text">守护进程介绍</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#守护进程编码设计规范"><span class="nav-number">2.</span> <span class="nav-text">守护进程编码设计规范</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#使用-Python-实现守护进程"><span class="nav-number">3.</span> <span class="nav-text">使用 Python 实现守护进程</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

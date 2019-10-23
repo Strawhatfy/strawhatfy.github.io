@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  
+  <url>
+    <loc>http://yoursite.com/tags/index.html</loc>
+    
+    <lastmod>2019-10-22T15:53:03.351Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/categories/index.html</loc>
+    
+    <lastmod>2019-10-22T15:53:03.351Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2019/05/20/v2ray.tls.nginx/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.351Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/09/28/two_algorithms_for_drop_probability/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.350Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/02/15/tornado.web_secure_cookies_xsrf/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.350Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/08/05/true_complemental_ones-complement_code/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.350Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/01/29/tornado.web_response/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.347Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/01/30/tornado.web_handle_exception/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.347Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/10/12/tornado.util.Configurable/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.346Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/01/19/tornado.web/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.346Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/10/14/tornado.tcpserver/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.346Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/27/tornado.stack_context/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.343Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/31/tornado.platform.posix/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.342Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/09/27/tornado.iostream/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.342Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/01/24/tornado.httputil.parse_body_arguments/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.342Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/10/21/tornado.httpserver/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.341Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/11/02/tornado.http1connection.HTTP1Connection/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.340Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.337Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/21/python-attribute-lookup/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.335Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2019/07/07/ssl.cert/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.335Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/15/signal%20%E2%80%94%20Set%20handlers%20for%20asynchronous%20events/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.335Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/08/03/nat-napt/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.334Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/24/closures/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.333Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/22/mutiplexing-IO/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.333Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/22/Tornado.gen/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.333Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2019/05/22/kvm.disk.cache.modes/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.333Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/30/TCP-IP-Protocol/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.326Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/12/10/ProcessPoolExecutor_In_Tornado/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.324Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/14/PEP%20475%20-%20Retry%20system%20calls%20failing%20with%20EINTR/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.324Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/22/IOLOOP/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.322Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/06/Method%20Dispatch/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.322Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2016/01/14/Linux%20Daemon%20Processes/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.322Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.322Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/06/30/Generics%20and%20Reflection/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.321Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/04/22/IO-strategies-server/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.321Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>http://yoursite.com/2015/07/09/Distributed%20locks%20with%20Redis/</loc>
+    
+    <lastmod>2019-10-22T15:53:03.321Z</lastmod>
+    
+  </url>
+  
+</urlset>

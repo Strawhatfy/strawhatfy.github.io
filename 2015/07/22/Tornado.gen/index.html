@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言注：正文中引用的 Tornado 代码除特别说明外，都默认引用自 Tornado 4.0.1。 tornado.gen 模块是一个基于 python generator 实现的异步编程接口。通过该模块提供的 coroutine （注：这里 coroutine 指的是 ”协程” 概念而不是后面具体实现的 decorator：@gen.decorator），大大简化了在 Tornado 中编写异步">
+<meta name="keywords" content="python,tornado,ioloop,asynchronous,gen,engine,coroutine,generator,yield,PEP 342">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.gen 模块解析">
+<meta property="og:url" content="http://yoursite.com/2015/07/22/Tornado.gen/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言注：正文中引用的 Tornado 代码除特别说明外，都默认引用自 Tornado 4.0.1。 tornado.gen 模块是一个基于 python generator 实现的异步编程接口。通过该模块提供的 coroutine （注：这里 coroutine 指的是 ”协程” 概念而不是后面具体实现的 decorator：@gen.decorator），大大简化了在 Tornado 中编写异步">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.333Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.gen 模块解析">
+<meta name="twitter:description" content="引言注：正文中引用的 Tornado 代码除特别说明外，都默认引用自 Tornado 4.0.1。 tornado.gen 模块是一个基于 python generator 实现的异步编程接口。通过该模块提供的 coroutine （注：这里 coroutine 指的是 ”协程” 概念而不是后面具体实现的 decorator：@gen.decorator），大大简化了在 Tornado 中编写异步">
+  <link rel="canonical" href="http://yoursite.com/2015/07/22/Tornado.gen/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.gen 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/07/22/Tornado.gen/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.gen 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-07-22 12:04:01" itemprop="dateCreated datePublished" datetime="2015-07-22T12:04:01+08:00">2015-07-22</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h4><p><strong>注：正文中引用的 Tornado 代码除特别说明外，都默认引用自 Tornado 4.0.1。</strong></p>
+<p>tornado.gen 模块是一个基于 python generator 实现的异步编程接口。通过该模块提供的 coroutine （<strong>注：这里 coroutine 指的是 ”协程” 概念而不是后面具体实现的 decorator：@gen.decorator</strong>），大大简化了在 Tornado 中编写异步代码的工作 —— 支持 “同步方式编写异步代码” ，避免编写烦人的回调函数。参考官方文档的例子，通常我们编写的异步代码如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">AsyncHandler</span><span class="params">(RequestHandler)</span>:</span></span><br><span class="line"><span class="meta">    @asynchronous</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">get</span><span class="params">(self)</span>:</span></span><br><span class="line">        http_client = AsyncHTTPClient()</span><br><span class="line">        http_client.fetch(<span class="string">"http://example.com"</span>,</span><br><span class="line">                          callback=self.on_fetch)</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">on_fetch</span><span class="params">(self, response)</span>:</span></span><br><span class="line">        do_something_with_response(response)</span><br><span class="line">        self.render(<span class="string">"template.html"</span>)</span><br></pre></td></tr></table></figure>
+<p>而使用 tornado.gen 模块提供的 decorator ，在 Tornado 3.1 以前我们可以这样写异步代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">GenAsyncHandler</span><span class="params">(RequestHandler)</span>:</span></span><br><span class="line"><span class="meta">    @asynchronous</span></span><br><span class="line"><span class="meta">    @gen.engine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">get</span><span class="params">(self)</span>:</span></span><br><span class="line">        http_client = AsyncHTTPClient()</span><br><span class="line">        response = <span class="keyword">yield</span> http_client.fetch(<span class="string">"http://example.com"</span>)</span><br><span class="line">        do_something_with_response(response)</span><br><span class="line">        self.render(<span class="string">"template.html"</span>)</span><br></pre></td></tr></table></figure>
+<p>Tornado 3.1 及以上版本，可以直接使用 @gen.coroutine 来代替 @asynchronous：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">GenAsyncHandler</span><span class="params">(RequestHandler)</span>:</span></span><br><span class="line"><span class="meta">    @gen.coroutine</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">get</span><span class="params">(self)</span>:</span></span><br><span class="line">        http_client = AsyncHTTPClient()</span><br><span class="line">        response = <span class="keyword">yield</span> http_client.fetch(<span class="string">"http://example.com"</span>)</span><br><span class="line">        do_something_with_response(response)</span><br><span class="line">        self.render(<span class="string">"template.html"</span>)</span><br></pre></td></tr></table></figure>
+<p><strong>注：@asynchronous 在 tornado.web 中定义，对于使用了 @gen.coroutine 装饰的方法不需要再使用  @asynchronous 进行装饰，但同时使用前述 2 个 decorator 进行方法装饰也是合法的，在同时使用的情况下需要注意的是 @asynchronous 必须是第 1 个 decorator 。</strong></p>
+<p>很显然，采用同步方式编写的异步代码相比起分散在各处的异步回调函数代码，更利于代码的阅读和逻辑的组织。</p>
+<p>该模块的实现非常巧妙也不容易理解，作为阅读 Tonardo 源码的笔记，我将在后面内容中结合源码和自己的理解对其实现进行分析。<br><a id="more"></a></p>
+<h4 id="gen-coroutine-与-gen-engine-的实现原理"><a href="#gen-coroutine-与-gen-engine-的实现原理" class="headerlink" title="@gen.coroutine 与 @gen.engine 的实现原理"></a>@gen.coroutine 与 @gen.engine 的实现原理</h4><p>tornado.gen 支持以同步方式编写异步代码的核心就是 <a href="https://docs.python.org/2/reference/expressions.html#yield-expressions" target="_blank" rel="noopener">python generator</a>。其原理简单来说，就是通过  generator.next() 启动 yield 返回的 generator ，通过 IOLoop 与  generator.send(value) 驱动 generator 运行，以达到协调异步执行的目的。</p>
+<p>从功能上来看， @gen.coroutine 与 @gen.engine 的功能非常相似，差别就在于二者对被装饰方法参数中的 “callback” 参数处理不一样以及具有不同的返回值。 @gen.coroutine 装饰的方法执行后返回 Future 对象并且会将方法参数中的 “callback” 加入到 Future 完成后的回调列表中；@gen.engine 装饰的方法执行后没有返回值（<strong>注：实际上如果被装饰方法有返回值，会抛出 ReturnValueIgnoredError 异常，详见后面的代码分析部分</strong>）。</p>
+<p>所以，通过 @gen.engine 装饰的方法没有返回值，方法必须自己在异步调用完成后调用 “callback” 来执行回调动作，而通过 @gen.coroutine 装饰的方法则可以直接返回执行结果，然后由 gen 模块负责将结果传递给 “callback” 来执行回调。</p>
+<p><strong>注： 从调用者的角度来看 <a href="mailto:`@gen.coroutine" target="_blank" rel="noopener">`@gen.coroutine</a><code>可以视为</code>@tornado.concurrent.return_future<code>与</code>@gen.engine` 的组合。</strong></p>
+<h5 id="gen-coroutine-实现原理"><a href="#gen-coroutine-实现原理" class="headerlink" title="@gen.coroutine 实现原理"></a>@gen.coroutine 实现原理</h5><p>@gen.coroutine 中充分利用了 generator 的特性，下面是其实现代码及分析。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">coroutine</span><span class="params">(func, replace_callback=True)</span>:</span></span><br><span class="line">    <span class="string">"""Decorator for asynchronous generators."""</span></span><br><span class="line">    <span class="keyword">return</span> _make_coroutine_wrapper(func, replace_callback=<span class="literal">True</span>)</span><br></pre></td></tr></table></figure>
+<p>coroutine 内部直接委托 _make_coroutine_wrapper 完成具体功能（这段代码中 coroutine 的可选参数 “replace_callback” 是没有使用的），返回一个 Future 实例对象。</p>
+<p>_make_coroutine_wrapper(func, replace_callback) 函数作为 @gen.coroutine 和 @gen.engine 内部实现，通过 replace_callback 的值来决定是否对 “callback” 方法参数进行处理。coroutine 的实现中通过 replace_callback=True 调用 _make_coroutine_wrapper 函数，会检查方法参数中是否有 “callback” 参数，如果有的话会将其加入到方法返回值 Future 的完成后回调列表中。如下面代码所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_make_coroutine_wrapper</span><span class="params">(func, replace_callback)</span>:</span></span><br><span class="line"><span class="meta">    @functools.wraps(func)</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wrapper</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">        future = TracebackFuture()</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 处理 “callback”，忽略或者将其加入到 Future 的完成回调列表中。</span></span><br><span class="line">        <span class="keyword">if</span> replace_callback <span class="keyword">and</span> <span class="string">'callback'</span> <span class="keyword">in</span> kwargs:</span><br><span class="line">            callback = kwargs.pop(<span class="string">'callback'</span>)</span><br><span class="line">            IOLoop.current().add_future(</span><br><span class="line">                future, <span class="keyword">lambda</span> future: callback(future.result()))</span><br><span class="line"></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            result = func(*args, **kwargs)</span><br><span class="line">        <span class="keyword">except</span> (Return, StopIteration) <span class="keyword">as</span> e:</span><br><span class="line">            <span class="comment"># 在 python 2 以及 python 3.3 以前，generator 中不能直接通过</span></span><br><span class="line">            <span class="comment"># return 返回值：return 被视为 raise StopIteration()，</span></span><br><span class="line">            <span class="comment"># return &lt;something&gt; 被视为raise StopIteration(&lt;something&gt;)。</span></span><br><span class="line">            <span class="comment"># 在 gen 模块中，特别定义了 Return 类型用于返回值：raise gen.Return(something&gt;)</span></span><br><span class="line">            result = getattr(e, <span class="string">'value'</span>, <span class="literal">None</span>)</span><br><span class="line">        <span class="keyword">except</span> Exception:</span><br><span class="line">            <span class="comment"># 发生异常，异常被写入 future（将会被设置为完成状态），结束调用，返回 future</span></span><br><span class="line">            future.set_exc_info(sys.exc_info())</span><br><span class="line">            <span class="keyword">return</span> future</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">if</span> isinstance(result, types.GeneratorType):</span><br><span class="line">                <span class="comment"># 通过检查 result 是否为 GeneratorType 来选择是否创建 coroutine ，对于</span></span><br><span class="line">                <span class="comment"># 同步情况直接 future.set_result(result) 返回，避免创建 coroutine 而</span></span><br><span class="line">                <span class="comment"># 造成的性能损失。</span></span><br><span class="line">                <span class="comment"># 与 Tornado 4.0 之前的版本比较，这里已经把顶层 ExceptionStackContext</span></span><br><span class="line">                <span class="comment"># 的构建以及 Runner.run 的功能进行了重构，都迁移到了 Runner 实现中。</span></span><br><span class="line">                <span class="comment">#</span></span><br><span class="line">                <span class="comment"># 通过 next 启动 generator ，启动前记录上下文，启动后对上下文进行一致性检查。</span></span><br><span class="line">                <span class="comment"># 若 generator 中有从 "with StackContext" 直接 “yield” 的代码逻辑，将抛</span></span><br><span class="line">                <span class="comment"># 出 StackContextInconsistentError 异常。</span></span><br><span class="line">                <span class="keyword">try</span>:</span><br><span class="line">                    orig_stack_contexts = stack_context._state.contexts</span><br><span class="line">                    yielded = next(result)</span><br><span class="line">                    <span class="keyword">if</span> stack_context._state.contexts <span class="keyword">is</span> <span class="keyword">not</span> orig_stack_contexts:</span><br><span class="line">                        yielded = TracebackFuture()</span><br><span class="line">                        yielded.set_exception(</span><br><span class="line">                            stack_context.StackContextInconsistentError(</span><br><span class="line">                                <span class="string">'stack_context inconsistency (probably caused '</span></span><br><span class="line">                                <span class="string">'by yield within a "with StackContext" block)'</span>))</span><br><span class="line">                <span class="keyword">except</span> (StopIteration, Return) <span class="keyword">as</span> e:</span><br><span class="line">                    future.set_result(getattr(e, <span class="string">'value'</span>, <span class="literal">None</span>))</span><br><span class="line">                <span class="keyword">except</span> Exception:</span><br><span class="line">                    future.set_exc_info(sys.exc_info())</span><br><span class="line">                <span class="keyword">else</span>:</span><br><span class="line">                    Runner(result, future, yielded)</span><br><span class="line">                <span class="keyword">try</span>:</span><br><span class="line">                    <span class="keyword">return</span> future</span><br><span class="line">                <span class="keyword">finally</span>:</span><br><span class="line">                    <span class="comment"># Subtle memory optimization: if next() raised an exception,</span></span><br><span class="line">                    <span class="comment"># the future's exc_info contains a traceback which</span></span><br><span class="line">                    <span class="comment"># includes this stack frame.  This creates a cycle,</span></span><br><span class="line">                    <span class="comment"># which will be collected at the next full GC but has</span></span><br><span class="line">                    <span class="comment"># been shown to greatly increase memory usage of</span></span><br><span class="line">                    <span class="comment"># benchmarks (relative to the refcount-based scheme</span></span><br><span class="line">                    <span class="comment"># used in the absence of cycles).  We can avoid the</span></span><br><span class="line">                    <span class="comment"># cycle by clearing the local variable after we return it.</span></span><br><span class="line">                    <span class="comment">#</span></span><br><span class="line">                    <span class="comment"># 代码注释中说，generator.next() 抛出异常失败后， future 的 exc_info</span></span><br><span class="line">                    <span class="comment"># 中会包含当前栈帧的引用，栈帧中也有对 future 的引用，这样导致一个环，必须</span></span><br><span class="line">                    <span class="comment"># 要在下一次 full GC 时才能回收内存。返回 future 后将 future 设置为 None</span></span><br><span class="line">                    <span class="comment"># 可以优化内存。（注：需要 full GC 是与 python 的垃圾回收实现采用引用计数</span></span><br><span class="line">                    <span class="comment"># 为主，标记-清除和分代机制为辅相关。python 采用引用计数来立刻释放可以释放</span></span><br><span class="line">                    <span class="comment"># 的内存，然后用标记-清除的方法来清除循环引用的不可达对象。）</span></span><br><span class="line">                    future = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">        <span class="comment"># 同步情况下，不需要创建 coroutine，直接返回 future。</span></span><br><span class="line">        future.set_result(result)</span><br><span class="line">        <span class="keyword">return</span> future</span><br><span class="line">    <span class="keyword">return</span> wrapper</span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Return</span><span class="params">(Exception)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, value=None)</span>:</span></span><br><span class="line">        super(Return, self).__init__()</span><br><span class="line">        self.value = value</span><br></pre></td></tr></table></figure>
+<p><strong>注： 关于 CPython 的 GC 实现，这里有一篇不错的源码分析文章：</strong><a href="http://hbprotoss.github.io/posts/pythonla-ji-hui-shou-ji-zhi.html" target="_blank" rel="noopener">Python垃圾回收机制</a></p>
+<p>如下面的代码所示， IOLoop 的 add_future 方法会封装回调方法，在 Future 完成以后会将 “callback” 加入到 IOLoop 的回调列表中以等待 IOLoop 调度执行回调动作。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">add_future</span><span class="params">(self, future, callback)</span>:</span></span><br><span class="line">    <span class="string">"""Schedules a callback on the ``IOLoop`` when the given</span></span><br><span class="line"><span class="string">    `.Future` is finished.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The callback is invoked with one argument, the</span></span><br><span class="line"><span class="string">    `.Future`.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">assert</span> is_future(future)</span><br><span class="line">    callback = stack_context.wrap(callback)</span><br><span class="line">    <span class="comment"># 在 future 的完成回调列表中增加一个 lambda 表达式，负责在</span></span><br><span class="line">    <span class="comment"># 将 “callback” 加入 IOLoop 调度执行。</span></span><br><span class="line">    future.add_done_callback(</span><br><span class="line">        <span class="keyword">lambda</span> future: self.add_callback(callback, future))</span><br></pre></td></tr></table></figure>
+<p>从上面的代码分析中可以看到 <code>_make_coroutine_wrapper</code> 函数已经完成了 coroutine 的创建，其代码逻辑比较简单，而整个 coroutine 启动、运行的核心功能被实现在 <code>Runner</code> 类中。 <code>Runner</code> 有一个 <code>run()</code> 方法，该方法负责启动 coroutine，并与 IOLoop 配合驱动 YieldPoint(<strong>注：在 generator 中通过 yield 返回的实例类型，Tornado 4.0 及以后推荐使用 Futures 类型， YieldPoint 类型被放弃</strong>) 执行直到 result_future 完成。 <code>run()</code> 方法的详细代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br><span class="line">137</span><br><span class="line">138</span><br><span class="line">139</span><br><span class="line">140</span><br><span class="line">141</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">run</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Starts or resumes the generator, running until it reaches a</span></span><br><span class="line"><span class="string">    yield point that is not ready.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> self.running <span class="keyword">or</span> self.finished:</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        self.running = <span class="literal">True</span></span><br><span class="line">        <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">            future = self.future</span><br><span class="line"></span><br><span class="line">            <span class="comment"># 当前 future 没有完成时直接返回，等待 IOLoop 在 future 完成后回调再执行</span></span><br><span class="line">            <span class="keyword">if</span> <span class="keyword">not</span> future.done():</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">            <span class="comment"># 当前 future 完成后对 coroutine 接下来运行没作用，立即释放</span></span><br><span class="line">            self.future = <span class="literal">None</span></span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                orig_stack_contexts = stack_context._state.contexts</span><br><span class="line">                <span class="keyword">try</span>:</span><br><span class="line">                    value = future.result()</span><br><span class="line">                <span class="keyword">except</span> Exception:</span><br><span class="line">                    self.had_exception = <span class="literal">True</span></span><br><span class="line">                    yielded = self.gen.throw(*sys.exc_info())</span><br><span class="line">                <span class="keyword">else</span>:</span><br><span class="line">					<span class="comment"># 将 future 的结果赋值给当前 yield 表达式，驱动 generator 继续</span></span><br><span class="line">                    <span class="comment"># 执行， （如果generator未结束的话）返回下一个 yield 表达式结果</span></span><br><span class="line">                    yielded = self.gen.send(value)</span><br><span class="line">                <span class="keyword">if</span> stack_context._state.contexts <span class="keyword">is</span> <span class="keyword">not</span> orig_stack_contexts:</span><br><span class="line">                    self.gen.throw(</span><br><span class="line">                        stack_context.StackContextInconsistentError(</span><br><span class="line">                            <span class="string">'stack_context inconsistency (probably caused '</span></span><br><span class="line">                            <span class="string">'by yield within a "with StackContext" block)'</span>))</span><br><span class="line">            <span class="keyword">except</span> (StopIteration, Return) <span class="keyword">as</span> e:</span><br><span class="line">                <span class="comment"># generator 执行完成，将 执行结果赋值给 result_future，返回</span></span><br><span class="line">                self.finished = <span class="literal">True</span></span><br><span class="line">                self.future = _null_future</span><br><span class="line"></span><br><span class="line">                <span class="comment"># Tornado 4.0 之前使用 YieldPoint 驱动，Callback 与 Wait/WaitAll</span></span><br><span class="line">                <span class="comment"># 协调时，Callback 的回调结果需要 Runner 作为中转站，通过</span></span><br><span class="line">                <span class="comment"># Runner.register_callback(key) 登记 Callback ，再通过</span></span><br><span class="line">                <span class="comment"># YieldPoint.result_callback(key) 取回“设置（回调）方法”，</span></span><br><span class="line">                <span class="comment"># 外部通过“设置（回调）方法”把结果保存到 Runner.results 字典中。</span></span><br><span class="line">                <span class="comment"># Wait/WaitAll 通过 get_result(key) 取回 结果。</span></span><br><span class="line">                <span class="comment"># YieldFuture 的实现也采用了相同的实现方式。</span></span><br><span class="line">                <span class="comment"># Tornado 4.0 之后使用 Future 代替 YieldPoint，这些已经过时。</span></span><br><span class="line">                <span class="comment"># 与 Yield 相关的代码都是为了向后兼容。</span></span><br><span class="line">                <span class="keyword">if</span> self.pending_callbacks <span class="keyword">and</span> <span class="keyword">not</span> self.had_exception:</span><br><span class="line">                    <span class="comment"># If we ran cleanly without waiting on all callbacks</span></span><br><span class="line">                    <span class="comment"># raise an error (really more of a warning).  If we</span></span><br><span class="line">                    <span class="comment"># had an exception then some callbacks may have been</span></span><br><span class="line">                    <span class="comment"># orphaned, so skip the check in that case.</span></span><br><span class="line">                    <span class="keyword">raise</span> LeakedCallbackError(</span><br><span class="line">                        <span class="string">"finished without waiting for callbacks %r"</span> %</span><br><span class="line">                        self.pending_callbacks)</span><br><span class="line">                self.result_future.set_result(getattr(e, <span class="string">'value'</span>, <span class="literal">None</span>))</span><br><span class="line">                self.result_future = <span class="literal">None</span></span><br><span class="line">                self._deactivate_stack_context()</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">            <span class="keyword">except</span> Exception:</span><br><span class="line">                self.finished = <span class="literal">True</span></span><br><span class="line">                self.future = _null_future</span><br><span class="line">                self.result_future.set_exc_info(sys.exc_info())</span><br><span class="line">                self.result_future = <span class="literal">None</span></span><br><span class="line">                self._deactivate_stack_context()</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line"></span><br><span class="line">            <span class="comment"># 继续处理 yield 表达式结果</span></span><br><span class="line">            <span class="keyword">if</span> <span class="keyword">not</span> self.handle_yield(yielded):</span><br><span class="line">                <span class="keyword">return</span></span><br><span class="line">    <span class="keyword">finally</span>:</span><br><span class="line">        self.running = <span class="literal">False</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">handle_yield</span><span class="params">(self, yielded)</span>:</span></span><br><span class="line">    <span class="comment"># 为了保持向后兼容，需要对多个 YieldPonit 和 Future 的混合集合做处理。</span></span><br><span class="line">    <span class="comment"># 对于全是 Future 的集合类型使用新的 multi_future 函数进行封装处理；</span></span><br><span class="line">    <span class="comment"># 不全是的使用 Multi 类进行封装，对于 Future 提供了 YieldFuture 适配器类。</span></span><br><span class="line">    <span class="comment"># 详细的实现细节见 YieldFuture、Multi的实现代码。</span></span><br><span class="line">    <span class="comment"># 若需要 run() 循环立即处理该 YieldPoint(被启动)/Future(已经完成) 则返</span></span><br><span class="line">    <span class="comment"># 回 True,否则返回 False。</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(yielded, list):</span><br><span class="line">        <span class="keyword">if</span> all(is_future(f) <span class="keyword">for</span> f <span class="keyword">in</span> yielded):</span><br><span class="line">            yielded = multi_future(yielded)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            yielded = Multi(yielded)</span><br><span class="line">    <span class="keyword">elif</span> isinstance(yielded, dict):</span><br><span class="line">        <span class="keyword">if</span> all(is_future(f) <span class="keyword">for</span> f <span class="keyword">in</span> yielded.values()):</span><br><span class="line">            yielded = multi_future(yielded)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            yielded = Multi(yielded)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 针对第一个 YieldPoint 使用一个 ExceptionStackContext 上下文来处理</span></span><br><span class="line">    <span class="comment"># StackContexts 中没有处理的异常，将未处理的异常记录到 result_future 中。</span></span><br><span class="line">    <span class="comment"># 对于 Future 对象则没有必要， Future 提供了方法来记录异常和异常堆栈信息，</span></span><br><span class="line">    <span class="comment"># 在 Future 完成后通过其 result() 方法获取结果（在 run 方法的调用）时会</span></span><br><span class="line">    <span class="comment"># 再次抛出异常，这时可捕获记录到 result_future 中。</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(yielded, YieldPoint):</span><br><span class="line">        self.future = TracebackFuture()</span><br><span class="line">        <span class="function"><span class="keyword">def</span> <span class="title">start_yield_point</span><span class="params">()</span>:</span></span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                yielded.start(self)</span><br><span class="line">                <span class="comment"># 如果 yielded 已经完成，则将其结果赋值给 self.future，等待 run 循环处理；</span></span><br><span class="line">                <span class="comment"># 若未就绪，则需要通过 Runner.set_result(key, value) 来进行赋值操作。</span></span><br><span class="line">                <span class="keyword">if</span> yielded.is_ready():</span><br><span class="line">                    self.future.set_result(</span><br><span class="line">                        yielded.get_result())</span><br><span class="line">                <span class="keyword">else</span>:</span><br><span class="line">                    self.yield_point = yielded</span><br><span class="line">            <span class="keyword">except</span> Exception:</span><br><span class="line">                self.future = TracebackFuture()</span><br><span class="line">                self.future.set_exc_info(sys.exc_info())</span><br><span class="line">        <span class="keyword">if</span> self.stack_context_deactivate <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># Start a stack context if this is the first</span></span><br><span class="line">            <span class="comment"># YieldPoint we've seen.</span></span><br><span class="line">            <span class="keyword">with</span> stack_context.ExceptionStackContext(</span><br><span class="line">                    self.handle_exception) <span class="keyword">as</span> deactivate:</span><br><span class="line">                self.stack_context_deactivate = deactivate</span><br><span class="line">                <span class="function"><span class="keyword">def</span> <span class="title">cb</span><span class="params">()</span>:</span></span><br><span class="line">                    start_yield_point()</span><br><span class="line">                    self.run()</span><br><span class="line">                <span class="comment"># 第 1 个 yielded 交由 IOLoop来启动</span></span><br><span class="line">                self.io_loop.add_callback(cb)</span><br><span class="line">                <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># 启动 YieldPoint，需要返回 True,在 run 循环中继续处理</span></span><br><span class="line">            start_yield_point()</span><br><span class="line">    <span class="keyword">elif</span> is_future(yielded):</span><br><span class="line">        self.future = yielded</span><br><span class="line">        <span class="comment"># self.future 完成后继续 self.run()</span></span><br><span class="line">        <span class="comment"># moment = Future() 是一个特殊的对象，主要用在需要长时间执行的 coroutine 中，</span></span><br><span class="line">        <span class="comment"># 通过 “yield gen.moment” 中断当前 coroutine ，将控制权交给 IOLoop 去轮询。</span></span><br><span class="line">        <span class="comment"># 等效于当前 coroutine 临时放弃时间片，给了其他 callback 机会运行。</span></span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self.future.done() <span class="keyword">or</span> self.future <span class="keyword">is</span> moment:</span><br><span class="line">            self.io_loop.add_future(</span><br><span class="line">                self.future, <span class="keyword">lambda</span> f: self.run())</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self.future = TracebackFuture()</span><br><span class="line">        self.future.set_exception(BadYieldError(</span><br><span class="line">            <span class="string">"yielded unknown object %r"</span> % (yielded,)))</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">True</span></span><br></pre></td></tr></table></figure>
+<p>如上面代码所示， Runner 的核心就是 run/handle_yield 方法，该方法的调用目前已经被内联到 Runner 的初始化方法中。如下面代码所示，根据 handle_yield() 方法返回的结果立即运行 run() 方法或者等待 IOLoop 调度运行 run()方法（Falsehandle_yield 返回 False 时，run() 方法被注册到 IOLoop 回调中执行。）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self, gen, result_future, first_yielded)</span>:</span></span><br><span class="line">    self.gen = genreturn_futurereturn_future</span><br><span class="line">    self.result_future = result_future</span><br><span class="line">    self.future = _null_future</span><br><span class="line">    self.yield_point = <span class="literal">None</span></span><br><span class="line">    self.pending_callbacks = <span class="literal">None</span></span><br><span class="line">    self.results = <span class="literal">None</span></span><br><span class="line">    self.running = <span class="literal">False</span></span><br><span class="line">    self.finished = <span class="literal">False</span></span><br><span class="line">    self.had_exception = <span class="literal">False</span></span><br><span class="line">    self.io_loop = IOLoop.current()</span><br><span class="line">    <span class="comment"># For efficiency, we do not create a stack context until we</span></span><br><span class="line">    <span class="comment"># reach a YieldPoint (stack contexts are required for the historical</span></span><br><span class="line">    <span class="comment"># semantics of YieldPoints, but not for Futures).  When we have</span></span><br><span class="line">    <span class="comment"># done so, this field will be set and must be called at the end</span></span><br><span class="line">    <span class="comment"># of the coroutine.</span></span><br><span class="line">    self.stack_context_deactivate = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> self.handle_yield(first_yielded):</span><br><span class="line">        self.run()</span><br></pre></td></tr></table></figure>
+<p>Runner 的其他方法主要是用于支持 YieldPoint 的执行，诸如为 YieldPoint 提供 ExceptionStackContext 支持（<strong>注：coroutine 结束时会调用 stack_context_deactivate 将该上下文设置为无效，在 stack_context._remove_deactivated 方法中会清理无效的上下文，并不会污染到上下文链，详细的细节请参考 stack_context 的设计实现</strong>）、结果中转（<strong>注：这是个人说法，主要是指为协调 Callback 与 Wait/WaitAll 提供的 register_callback、 is_ready、 set_result、 pop_result、 result_callback 几个方法</strong>）。</p>
+<h5 id="gen-engine-实现原理"><a href="#gen-engine-实现原理" class="headerlink" title="@gen.engine 实现原理"></a>@gen.engine 实现原理</h5><p>前面内容已经说过 <a href="mailto:`@gen.engine" target="_blank" rel="noopener">`@gen.engine</a><code>与</code>@gen.coroutine<code>是非常相似的，对使用者而言</code>@gen.coroutine<code>就是</code>@concurrent.return_future<code>和</code>@gen.engine<code>的组合(详见 concurrent.return_future 的实现)。下面是</code>@gen.engine` 的实现代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">engine</span><span class="params">(func)</span>:</span></span><br><span class="line">	<span class="comment"># 不对被装饰方法的 "callback" 参数做替换处理，也就是说即使被装饰方法有 “callback” 参数，</span></span><br><span class="line">    <span class="comment"># 在 coroutine 执行完成得到结果以后不会“自动调用”该 “callback”。细节将</span></span><br><span class="line">    <span class="comment"># _make_coroutine_wrapper 实现代码。</span></span><br><span class="line">    func = _make_coroutine_wrapper(func, replace_callback=<span class="literal">False</span>)</span><br><span class="line"><span class="meta">    @functools.wraps(func)</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wrapper</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">        <span class="comment"># 获取 coroutine 的执行结果，由于 coroutine 执行完成后不会自动调用 "callback" ，所</span></span><br><span class="line">        <span class="comment"># 以要求被装饰方法不能有返回值(非 None)而必须自己调用 "callback"，否则抛出</span></span><br><span class="line">        <span class="comment"># ReturnValueIgnoredError 异常。</span></span><br><span class="line">        future = func(*args, **kwargs)</span><br><span class="line">        <span class="function"><span class="keyword">def</span> <span class="title">final_callback</span><span class="params">(future)</span>:</span></span><br><span class="line">            <span class="keyword">if</span> future.result() <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">                <span class="keyword">raise</span> ReturnValueIgnoredError(</span><br><span class="line">                    <span class="string">"@gen.engine functions cannot return values: %r"</span> %</span><br><span class="line">                    (future.result(),))</span><br><span class="line">        future.add_done_callback(final_callback)</span><br><span class="line">    <span class="keyword">return</span> wrapper</span><br></pre></td></tr></table></figure>
+<h4 id="把普通的异步方法适配到-coroutine"><a href="#把普通的异步方法适配到-coroutine" class="headerlink" title="把普通的异步方法适配到 coroutine"></a>把普通的异步方法适配到 coroutine</h4><p>通过上面的分析可以看到，Tornado 实现的 coroutine 支持编写 “同步方式的异步代码”，但是要求异步调用的返回值是  Future 或者 YieldPoint 实例，对于这样的异步方法，我们只需要简单的使用 yield 表达式便可以轻松将其转换为 coroutine。而对于返回值为 None,仅支持通过 “callback” 参数回调（异步结果执行的结果会作为 “callback” 调用的实参）的普通异步方法，便不能直接被 Tornado 的 coroutine 支持，需要我们自己做一些额外的封装工作。</p>
+<p>tornado.gen 模块提供了一个标准的封装函数 Task（<strong>注：Tornado 4.0 以前 Task 是作为 YieldPoint 的子类来实现的，之后改为返回 Future 实例的函数，为了向后兼容，所以是一个拥有“类名”的函数。</strong>）。Task 的实现原理很简单，因为这种普通异步方法没有返回值而是通过把异步结果作为回调函数的实参来达到传递的目的，所以 Task 就将这种方法包装成返回值为 Future 的方法然后通过方法的回调函数来把异步结果传递给返回的 Future 实例。下面是 Task 的实现代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">Task</span><span class="params">(func, *args, **kwargs)</span>:</span></span><br><span class="line">    future = Future()</span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">handle_exception</span><span class="params">(typ, value, tb)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> future.done():</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">False</span></span><br><span class="line">        future.set_exc_info((typ, value, tb))</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">True</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 提供给 func 的回调函数，将 func 的异步结果传递给 future。</span></span><br><span class="line">    <span class="comment"># 注意： 这个回调函数仅支持一个 “参数”。</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">set_result</span><span class="params">(result)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> future.done():</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        future.set_result(result)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 由于 func 的 “callback” 的形参个数是不确定的(或者说 func 回调 “callback”</span></span><br><span class="line">    <span class="comment"># 的形参个数不确定)，要适配 set_result 就需要将形参包装成一个对象传递给</span></span><br><span class="line">    <span class="comment"># set_result。 _argument_adapter 函数就是负责完成这个封装功能的，对于 0 个或 1</span></span><br><span class="line">    <span class="comment"># 个实参调用的情况，_argument_adapter 不做任何处理直接将该参数传递给 set_result，</span></span><br><span class="line">    <span class="comment"># 对于多个实参的情况，这将参数包装成 Arguments(namedtuple) 传递给 set_result。</span></span><br><span class="line">    <span class="comment"># 参数的 “callback”，</span></span><br><span class="line">    <span class="keyword">with</span> stack_context.ExceptionStackContext(handle_exception):</span><br><span class="line">        func(*args, callback=_argument_adapter(set_result), **kwargs)</span><br><span class="line">    <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line">Arguments = collections.namedtuple(<span class="string">'Arguments'</span>, [<span class="string">'args'</span>, <span class="string">'kwargs'</span>])</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_argument_adapter</span><span class="params">(callback)</span>:</span></span><br><span class="line">    <span class="string">"""Returns a function that when invoked runs ``callback`` with one arg.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If the function returned by this function is called with exactly</span></span><br><span class="line"><span class="string">    one argument, that argument is passed to ``callback``.  Otherwise</span></span><br><span class="line"><span class="string">    the args tuple and kwargs dict are wrapped in an `Arguments` object.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wrapper</span><span class="params">(*args, **kwargs)</span>:</span></span><br><span class="line">        <span class="keyword">if</span> kwargs <span class="keyword">or</span> len(args) &gt; <span class="number">1</span>:</span><br><span class="line">            callback(Arguments(args, kwargs))</span><br><span class="line">        <span class="keyword">elif</span> args:</span><br><span class="line">            callback(args[<span class="number">0</span>])</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            callback(<span class="literal">None</span>)</span><br><span class="line">    <span class="keyword">return</span> wrapper</span><br></pre></td></tr></table></figure>
+<p><strong>注：Task 内部已经实现了隐式传递 “callback” 参数，所以使用 Task 时不能显示传递 “callback”。</strong></p>
+<h4 id="结束语"><a href="#结束语" class="headerlink" title="结束语"></a>结束语</h4><p><a href="https://docs.python.org/2/reference/expressions.html#generator-iterator-methods" target="_blank" rel="noopener">python generator</a> 是个功能强大的利器（<a href="https://www.python.org/dev/peps/pep-0342/" target="_blank" rel="noopener">PEP 342</a> 加入了新的特性，能让生成器在单一语句中实现，生成一个值或者接受一个值，或同时生成一个值并接受一个值。），是 tornado.gen 模块实现 coroutine 的基石。虽然 tornado.gen 的核心就是 generator，但是其整个设计和实现都非常巧妙，并且随着 Tornado 版本的演变该模块也在不断重构和优化，对比其不同版本的实现演进，对于我们理解学习都非常有价值，值得反复研读。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+              <a href="/tags/tornado/" rel="tag"># tornado</a>
+            
+              <a href="/tags/ioloop/" rel="tag"># ioloop</a>
+            
+              <a href="/tags/asynchronous/" rel="tag"># asynchronous</a>
+            
+              <a href="/tags/gen/" rel="tag"># gen</a>
+            
+              <a href="/tags/engine/" rel="tag"># engine</a>
+            
+              <a href="/tags/coroutine/" rel="tag"># coroutine</a>
+            
+              <a href="/tags/generator/" rel="tag"># generator</a>
+            
+              <a href="/tags/yield/" rel="tag"># yield</a>
+            
+              <a href="/tags/PEP-342/" rel="tag"># PEP 342</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/07/15/signal — Set handlers for asynchronous events/" rel="next" title="signal — Set handlers for asynchronous events">
+                  <i class="fa fa-chevron-left"></i> signal — Set handlers for asynchronous events
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/07/27/tornado.stack_context/" rel="prev" title="tornado.stack_context 模块解析">
+                  tornado.stack_context 模块解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#gen-coroutine-与-gen-engine-的实现原理"><span class="nav-number">2.</span> <span class="nav-text">@gen.coroutine 与 @gen.engine 的实现原理</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#gen-coroutine-实现原理"><span class="nav-number">2.1.</span> <span class="nav-text">@gen.coroutine 实现原理</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#gen-engine-实现原理"><span class="nav-number">2.2.</span> <span class="nav-text">@gen.engine 实现原理</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#把普通的异步方法适配到-coroutine"><span class="nav-number">3.</span> <span class="nav-text">把普通的异步方法适配到 coroutine</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#结束语"><span class="nav-number">4.</span> <span class="nav-text">结束语</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

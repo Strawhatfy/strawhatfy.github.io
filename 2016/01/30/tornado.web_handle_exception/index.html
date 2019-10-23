@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="RequestHandler 异常处理之前的笔记中已经提到过 RequestHandler 的 _execute 方法完全处于一个异常处理块中，所以异常处理入口 _handle_request_exception 便在这里开始处理流程。 1234567891011121314151617181920def _handle_request_exception(self, e):    if isin">
+<meta name="keywords" content="Finish,HTTPError,log_exception,send_error,write_error">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.web.RequestHandler 异常处理">
+<meta property="og:url" content="http://yoursite.com/2016/01/30/tornado.web_handle_exception/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="RequestHandler 异常处理之前的笔记中已经提到过 RequestHandler 的 _execute 方法完全处于一个异常处理块中，所以异常处理入口 _handle_request_exception 便在这里开始处理流程。 1234567891011121314151617181920def _handle_request_exception(self, e):    if isin">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.347Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.web.RequestHandler 异常处理">
+<meta name="twitter:description" content="RequestHandler 异常处理之前的笔记中已经提到过 RequestHandler 的 _execute 方法完全处于一个异常处理块中，所以异常处理入口 _handle_request_exception 便在这里开始处理流程。 1234567891011121314151617181920def _handle_request_exception(self, e):    if isin">
+  <link rel="canonical" href="http://yoursite.com/2016/01/30/tornado.web_handle_exception/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.web.RequestHandler 异常处理 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2016/01/30/tornado.web_handle_exception/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.web.RequestHandler 异常处理
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2016-01-30 14:00:01" itemprop="dateCreated datePublished" datetime="2016-01-30T14:00:01+08:00">2016-01-30</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="RequestHandler-异常处理"><a href="#RequestHandler-异常处理" class="headerlink" title="RequestHandler 异常处理"></a>RequestHandler 异常处理</h3><p>之前的笔记中已经提到过 <code>RequestHandler</code> 的 <code>_execute</code> 方法完全处于一个异常处理块中，所以异常处理入口 <code>_handle_request_exception</code> 便在这里开始处理流程。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_handle_request_exception</span><span class="params">(self, e)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(e, Finish):</span><br><span class="line">        <span class="comment"># Not an error; just finish the request without logging.</span></span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self._finished:</span><br><span class="line">            self.finish()</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    self.log_exception(*sys.exc_info())</span><br><span class="line">    <span class="keyword">if</span> self._finished:</span><br><span class="line">        <span class="comment"># Extra errors after the request has been finished should</span></span><br><span class="line">        <span class="comment"># be logged, but there is no reason to continue to try and</span></span><br><span class="line">        <span class="comment"># send a response.</span></span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(e, HTTPError):</span><br><span class="line">        <span class="keyword">if</span> e.status_code <span class="keyword">not</span> <span class="keyword">in</span> httputil.responses <span class="keyword">and</span> <span class="keyword">not</span> e.reason:</span><br><span class="line">            gen_log.error(<span class="string">"Bad HTTP status code: %d"</span>, e.status_code)</span><br><span class="line">            self.send_error(<span class="number">500</span>, exc_info=sys.exc_info())</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            self.send_error(e.status_code, exc_info=sys.exc_info())</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self.send_error(<span class="number">500</span>, exc_info=sys.exc_info())</span><br></pre></td></tr></table></figure>
+<p>由前面的代码可以看到，与请求异常处理相关的自定义异常类型是 <code>Finish</code>、<code>HTTPError</code>，方法有 <code>log_exception</code> 和 <code>send_error</code>。</p>
+<p>在 <code>_handle_request_exception</code> 的处理流程中，除去 <code>Finish</code> 类型外的所有异常都需要调用 <code>log_exception</code> 方法来记录异常信息。如果响应没有结束，还需要尝试向客户端响应异常信息（只所以说是 “尝试”，是因为我们无法修改已经 <code>flush</code> 到客户端的数据，只能在尚未 <code>flush</code> 过数据时响应异常信息）。</p>
+<h4 id="Finish"><a href="#Finish" class="headerlink" title="Finish"></a>Finish</h4><p><code>Finish</code> 是一个特别的自定义异常类型，为应用程序提供一种提前结束请求的方式。因抛出 <code>Finish</code> 而结束的请求不会输出一个异常响应（即不被视为请求处理异常）。如代码中所示，在 <code>RequestHandler</code> 请求处理过程中抛出 <code>Finish</code> 时，如果没有调用 <code>finish</code> 则调用 <code>finish</code> 结束请求，并立即返回，结束处理流程。这样一来后续与异常处理相关的方法就不会被调用，也就不会影响到已经 <code>flush</code> 的内容。</p>
+<a id="more"></a>
+<h4 id="HTTPError"><a href="#HTTPError" class="headerlink" title="HTTPError"></a>HTTPError</h4><p><code>HTTPError</code> 用来包装一个异常，将其转换为一个 HTTP 错误响应。与 <code>Finish</code> 一样，抛出一个 <code>HTTPError</code> 便会自动结束一个请求，相对于直接调用 <code>send_error</code> 来向客户端输出一个 HTTP 错误响应更方便。</p>
+<p>由 <code>_handle_request_exception</code> 的代码可知，对于一般的未捕获的异常，直接响应为 HTTP 500 错误。对于 <code>HTTPError</code> 异常实例，如果其没有设置 HTTP 状态码和错误原因也响应为 HTTP 500 错误，否则按照 <code>HTTPError</code> 实例提供的错误码响应。</p>
+<h4 id="log-exception-method"><a href="#log-exception-method" class="headerlink" title="log_exception method"></a>log_exception method</h4><p><code>log_exception</code> 为请求处理器提供记录未处理异常的日志功能，<strong><code>RequestHandler</code> 的子类可以覆写该方法来自定义日志的等级和输出内容、格式等。</strong></p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">log_exception</span><span class="params">(self, typ, value, tb)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> isinstance(value, HTTPError):</span><br><span class="line">        <span class="keyword">if</span> value.log_message:</span><br><span class="line">            format = <span class="string">"%d %s: "</span> + value.log_message</span><br><span class="line">            args = ([value.status_code, self._request_summary()] +</span><br><span class="line">                    list(value.args))</span><br><span class="line">            gen_log.warning(format, *args)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        app_log.error(<span class="string">"Uncaught exception %s\n%r"</span>, self._request_summary(),</span><br><span class="line">                      self.request, exc_info=(typ, value, tb))</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_request_summary</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">return</span> self.request.method + <span class="string">" "</span> + self.request.uri + \</span><br><span class="line">        <span class="string">" ("</span> + self.request.remote_ip + <span class="string">")"</span></span><br></pre></td></tr></table></figure>
+<p>默认情况下，<code>HTTPError</code> 通过 <code>tornado.general</code> 日志实例记录为 “warning” 等级，并且不会记录异常堆栈信息。其他异常类型则通过 <code>tornado.application</code> 日志实例记录为 “error” 等级，并有完整的异常堆栈信息。</p>
+<p>另外，<code>_request_summary</code> 方法只能输出请求的 HttpMethod、uri、remote_ip 信息。发生非 <code>HTTPError</code> 类型异常时，甚至连上述信息都没有记录。这在实际使用时可能并不够用，通常我们可能还需要将请求（GET/POST）参数一并记录下来分析。</p>
+<h4 id="send-error-method"><a href="#send-error-method" class="headerlink" title="send_error method"></a>send_error method</h4><p><code>send_error</code> 在请求处理器捕获到未处理异常时尝试向客户端发送一个 HTTP 错误响应。如果已经调用过 <code>flush</code> 方法，则不可能再发送错误码，便简单地结束响应。如果仅仅输出了响应信息，但还没有 <code>flush</code> 到客户端，则会放弃输出的响应信息，而使用错误页面代替。方法中调用 <code>write_error</code> 方法便是输出错误页面，通过在 <code>RequestHandler</code> 子类中覆写这个方法可以自定义错误页面。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">send_error</span><span class="params">(self, status_code=<span class="number">500</span>, **kwargs)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self._headers_written:</span><br><span class="line">        gen_log.error(<span class="string">"Cannot send error response after headers written"</span>)</span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self._finished:</span><br><span class="line">            self.finish()</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    self.clear()</span><br><span class="line"></span><br><span class="line">    reason = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> <span class="string">'exc_info'</span> <span class="keyword">in</span> kwargs:</span><br><span class="line">        exception = kwargs[<span class="string">'exc_info'</span>][<span class="number">1</span>]</span><br><span class="line">        <span class="keyword">if</span> isinstance(exception, HTTPError) <span class="keyword">and</span> exception.reason:</span><br><span class="line">            reason = exception.reason</span><br><span class="line">    self.set_status(status_code, reason=reason)</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        self.write_error(status_code, **kwargs)</span><br><span class="line">    <span class="keyword">except</span> Exception:</span><br><span class="line">        app_log.error(<span class="string">"Uncaught exception in write_error"</span>, exc_info=<span class="literal">True</span>)</span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> self._finished:</span><br><span class="line">        self.finish()</span><br></pre></td></tr></table></figure>
+<h4 id="write-error-method"><a href="#write-error-method" class="headerlink" title="write_error method"></a>write_error method</h4><p><strong>用户可以覆写 <code>write_error</code> 方法来输出自定义的错误页面。</strong> 在方法中可以调用诸如 <code>write</code>, <code>render</code>, <code>set_header</code> 等一系列辅助响应输出的方法。如果错误是由未捕获的异常（包括 HTTP Error）导致的，那么一个 <code>exc_info</code> 元组应包含在关键字参数 <code>kwargs[&quot;exc_info&quot;]</code> 中。另外需要注意的是这个异常可能个并不是 “当前异常”。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">write_error</span><span class="params">(self, status_code, **kwargs)</span>:</span></span><br><span class="line">    <span class="string">"""Override to implement custom error pages.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    ``write_error`` may call `write`, `render`, `set_header`, etc</span></span><br><span class="line"><span class="string">    to produce output as usual.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If this error was caused by an uncaught exception (including</span></span><br><span class="line"><span class="string">    HTTPError), an ``exc_info`` triple will be available as</span></span><br><span class="line"><span class="string">    ``kwargs["exc_info"]``.  Note that this exception may not be</span></span><br><span class="line"><span class="string">    the "current" exception for purposes of methods like</span></span><br><span class="line"><span class="string">    ``sys.exc_info()`` or ``traceback.format_exc``.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> self.settings.get(<span class="string">"serve_traceback"</span>) <span class="keyword">and</span> <span class="string">"exc_info"</span> <span class="keyword">in</span> kwargs:</span><br><span class="line">        <span class="comment"># in debug mode, try to send a traceback</span></span><br><span class="line">        self.set_header(<span class="string">'Content-Type'</span>, <span class="string">'text/plain'</span>)</span><br><span class="line">        <span class="keyword">for</span> line <span class="keyword">in</span> traceback.format_exception(*kwargs[<span class="string">"exc_info"</span>]):</span><br><span class="line">            self.write(line)</span><br><span class="line">        self.finish()</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self.finish(<span class="string">"&lt;html&gt;&lt;title&gt;%(code)d: %(message)s&lt;/title&gt;"</span></span><br><span class="line">                    <span class="string">"&lt;body&gt;%(code)d: %(message)s&lt;/body&gt;&lt;/html&gt;"</span> % &#123;</span><br><span class="line">                        <span class="string">"code"</span>: status_code,</span><br><span class="line">                        <span class="string">"message"</span>: self._reason,</span><br><span class="line">                    &#125;)</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/Finish/" rel="tag"># Finish</a>
+            
+              <a href="/tags/HTTPError/" rel="tag"># HTTPError</a>
+            
+              <a href="/tags/log-exception/" rel="tag"># log_exception</a>
+            
+              <a href="/tags/send-error/" rel="tag"># send_error</a>
+            
+              <a href="/tags/write-error/" rel="tag"># write_error</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2016/01/29/tornado.web_response/" rel="next" title="tornado.web 消息响应实现">
+                  <i class="fa fa-chevron-left"></i> tornado.web 消息响应实现
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2016/02/15/tornado.web_secure_cookies_xsrf/" rel="prev" title="tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护">
+                  tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#RequestHandler-异常处理"><span class="nav-number">1.</span> <span class="nav-text">RequestHandler 异常处理</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Finish"><span class="nav-number">1.1.</span> <span class="nav-text">Finish</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#HTTPError"><span class="nav-number">1.2.</span> <span class="nav-text">HTTPError</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#log-exception-method"><span class="nav-number">1.3.</span> <span class="nav-text">log_exception method</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#send-error-method"><span class="nav-number">1.4.</span> <span class="nav-text">send_error method</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#write-error-method"><span class="nav-number">1.5.</span> <span class="nav-text">write_error method</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

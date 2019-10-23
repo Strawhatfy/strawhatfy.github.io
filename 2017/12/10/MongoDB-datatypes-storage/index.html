@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="What is MongoDB?MongoDB is a document database with the scalability and flexibility that you want with the querying and indexing that you need. Stores data in flexible, JSON-like documents. Document =">
+<meta name="keywords" content="MongoDB,datatypes,MMAPv1">
+<meta property="og:type" content="article">
+<meta property="og:title" content="MongoDB 数据类型及存储">
+<meta property="og:url" content="http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="What is MongoDB?MongoDB is a document database with the scalability and flexibility that you want with the querying and indexing that you need. Stores data in flexible, JSON-like documents. Document =">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/data-structure.png">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.322Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MongoDB 数据类型及存储">
+<meta name="twitter:description" content="What is MongoDB?MongoDB is a document database with the scalability and flexibility that you want with the querying and indexing that you need. Stores data in flexible, JSON-like documents. Document =">
+<meta name="twitter:image" content="http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/data-structure.png">
+  <link rel="canonical" href="http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>MongoDB 数据类型及存储 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2017/12/10/MongoDB-datatypes-storage/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">MongoDB 数据类型及存储
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2017-12-10 11:25:01" itemprop="dateCreated datePublished" datetime="2017-12-10T11:25:01+08:00">2017-12-10</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/MongoDB/" itemprop="url" rel="index"><span itemprop="name">MongoDB</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="What-is-MongoDB"><a href="#What-is-MongoDB" class="headerlink" title="What is MongoDB?"></a>What is MongoDB?</h1><p>MongoDB is a document database with the scalability and flexibility that you want with the querying and indexing that you need.</p>
+<p><strong>Stores data in flexible, JSON-like documents.</strong></p>
+<p>Document =&gt; Collection =&gt; Database</p>
+<p>ref: <a href="[https://www.mongodb.com/what-is-mongodb](https://www.mongodb.com/what-is-mongodb">what-is-mongodb</a>).</p>
+<h1 id="Data-Type"><a href="#Data-Type" class="headerlink" title="Data Type"></a>Data Type</h1><h2 id="BSON-vs-JSON"><a href="#BSON-vs-JSON" class="headerlink" title="BSON vs JSON"></a>BSON vs JSON</h2><p><a href="[http://bsonspec.org](http://bsonspec.org">BSON [bee · sahn]</a>), short for Binary JSON, is a binary-encoded serialization of JSON-like documents.</p>
+<ol>
+<li><p>继承自 JSON，具备 JSON 的通用性与 schema-less（例如与 Protocol Buffers 比较）；</p>
+</li>
+<li><p>扩展了 JSON 的数据类型，提供了 JSON 没有的一些数据类型，例如： Date 和 BinData（byte array，有了这种类型以后就不需要像 JSON 一样需要先 base64 编码再存储，减少了计算和存储的开销）；</p>
+</li>
+<li><p>BSON 的存储结构相比较 JSON 有更快的遍历速度；</p>
+</li>
+<li><p>BSON 的存储有数据类型的支持，字段更新的时候更快更方便。JSON 的存储由于没有数据类型的支持，字段的更新需要移动文档的内容，操作代价大。</p>
+</li>
+</ol>
+<p>BSON Spec ref：<a href="[http://bsonspec.org/spec.html](http://bsonspec.org/spec.html">bsonspec</a>)</p>
+<p>头部存有数据结构的长度，有数据类型的支持，遍历起来快，不用像 JSON 一样进行各种复杂的数据结构匹配。</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line">&#123;<span class="attr">"hello"</span>: <span class="string">"world"</span>&#125;</span><br><span class="line"></span><br><span class="line">\x16\x00\x00\x00                   // total document size</span><br><span class="line">\x02                               // 0x02 = type String</span><br><span class="line">hello\x00                          // field name</span><br><span class="line">\x06\x00\x00\x00world\x00          // field value</span><br><span class="line">\x00                               // 0x00 = type EOO ('end of object')</span><br><span class="line"></span><br><span class="line">&#123;<span class="attr">"BSON"</span>: [<span class="string">"awesome"</span>, <span class="number">5.05</span>, <span class="number">1986</span>]&#125;</span><br><span class="line"></span><br><span class="line">\x31\x00\x00\x00</span><br><span class="line">\x04BSON\x00</span><br><span class="line">\x26\x00\x00\x00</span><br><span class="line">\x02\x30\x00\x08\x00\x00\x00awesome\x00</span><br><span class="line">\x01\x31\x00\x33\x33\x33\x33\x33\x33\x14\x40</span><br><span class="line">\x10\x32\x00\xc2\x07\x00\x00</span><br><span class="line">\x00</span><br><span class="line">\x00</span><br></pre></td></tr></table></figure>
+<h2 id="BSON-Types"><a href="#BSON-Types" class="headerlink" title="BSON Types"></a>BSON Types</h2><p>BSON is a binary serialization format used to store documents and make remote procedure calls in MongoDB.</p>
+<p>ref：<a href="https://docs.mongodb.com/v2.6/reference/bson-types/" target="_blank" rel="noopener">https://docs.mongodb.com/v2.6/reference/bson-types/</a></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Number</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Double</td>
+<td>1</td>
+<td></td>
+</tr>
+<tr>
+<td>String</td>
+<td>2</td>
+<td></td>
+</tr>
+<tr>
+<td>Object</td>
+<td>3</td>
+<td></td>
+</tr>
+<tr>
+<td>Array</td>
+<td>4</td>
+<td></td>
+</tr>
+<tr>
+<td>Binary Data</td>
+<td>5</td>
+<td></td>
+</tr>
+<tr>
+<td>Undefined</td>
+<td>6</td>
+<td>deprecated</td>
+</tr>
+<tr>
+<td>Object id</td>
+<td>7</td>
+<td></td>
+</tr>
+<tr>
+<td>Boolean</td>
+<td>8</td>
+<td></td>
+</tr>
+<tr>
+<td>Date</td>
+<td>9</td>
+<td></td>
+</tr>
+<tr>
+<td>Null</td>
+<td>10</td>
+<td></td>
+</tr>
+<tr>
+<td>Regular Expression</td>
+<td>12</td>
+<td></td>
+</tr>
+<tr>
+<td>JavaScript</td>
+<td>13</td>
+<td></td>
+</tr>
+<tr>
+<td>Symbol</td>
+<td>14</td>
+<td>deprecated</td>
+</tr>
+<tr>
+<td>JavaScript (with scope)</td>
+<td>15</td>
+<td></td>
+</tr>
+<tr>
+<td>32-bit integer</td>
+<td>16</td>
+<td></td>
+</tr>
+<tr>
+<td>Timestamp</td>
+<td>17</td>
+<td></td>
+</tr>
+<tr>
+<td>64-bit integer</td>
+<td>18</td>
+<td></td>
+</tr>
+<tr>
+<td>Min key</td>
+<td>255</td>
+<td>Query with -1.</td>
+</tr>
+<tr>
+<td>Max key</td>
+<td>127</td>
+</tr>
+</tbody>
+</table>
+<a id="more"></a>
+<h2 id="Comparison-and-Sort-Order"><a href="#Comparison-and-Sort-Order" class="headerlink" title="Comparison and Sort Order"></a>Comparison and Sort Order</h2><ol>
+<li><p>不同数据类型之间的比较，类型之间有固定的比较优先级；</p>
+</li>
+<li><p>某些类型具有相同的优先级，比如：Numbers (ints, longs, doubles)，比较之前先进行类型转换；</p>
+</li>
+<li><p>non-existent field 与 empty field 等价，即 <code>{}</code> 与 <code>{a: null}</code> 等价；</p>
+</li>
+<li><p>Array 类型之间的比较排序，根据比较排序的类型选择 Array 中最小值（＜,ASC）或最大值(&gt;,DESC) 来比较；只有一个元素的 Array 与非 Array 的元素比较排序时，则直接使用数组中的唯一元素进行比较；Empty Array 将视为小于 Null 或者 缺少字段；</p>
+</li>
+<li><p>String 类型使用的是 UTF-8存储，由不同编程语言的 driver 来负责序列化和反序列化 BSON。另外，由于 <code>sort()</code> 函数内部使用 C++ strcmp api，在多语言环境中排序会有问题。MongoDB v3.4 引入 <a href="[https://docs.mongodb.com/manual/reference/collation/](https://docs.mongodb.com/manual/reference/collation/"><code>collation</code></a>) 参数。</p>
+</li>
+</ol>
+<h2 id="ObjectId"><a href="#ObjectId" class="headerlink" title="ObjectId"></a>ObjectId</h2><p>Document 需要 <code>_id</code> 字段作为 primary key，Insert document 时如果没有手动指定的话，该字段由 Driver 或者 MongoDB Server 来负责自动生成。</p>
+<h1 id="MMAPv1-Storage-Engine"><a href="#MMAPv1-Storage-Engine" class="headerlink" title="MMAPv1 Storage Engine"></a>MMAPv1 Storage Engine</h1><p>ref：<a href="https://docs.mongodb.com/manual/core/mmapv1/" target="_blank" rel="noopener">https://docs.mongodb.com/manual/core/mmapv1/</a></p>
+<p><a href="https://github.com/mongodb/mongo/tree/master/src/mongo/db/storage/mmap_v1" target="_blank" rel="noopener">https://github.com/mongodb/mongo/tree/master/src/mongo/db/storage/mmap_v1</a></p>
+<p>MMAPv1 是 MongoDB v3.2 之前的默认存储引擎，基于内存映射文件（<a href="https://docs.mongodb.com/v2.6/faq/storage/#what-are-memory-mapped-files" target="_blank" rel="noopener">memory mapped files</a>），具有优秀的 Insert，read and in-place update 性能。v3.2 之后默认使用的是 WiredTiger 引擎。</p>
+<p>MMAPv1 具有一下一些特点：</p>
+<ul>
+<li><p>Journal，MongoDB 会先写  journal file（write-ahead redo logs），然后才是 data file，默认情况下 journal file 落地的时间是最大是  100ms，data file 落地的时间是最大是 60s（这是一个理论最大时间，实际上 OS 自身也有一个 flush 的落地操作）。这样当 MongoDB 发生故障的时候可以从 Journal 中恢复数据。</p>
+</li>
+<li><p>Document 连续地存储在磁盘中，当 Document 由于更新导致需要更多的存储空间时，需要重新分配空间并移动 Document 及更新相应的 Index。这会导致效率低下和存储碎片。</p>
+<ul>
+<li><p>padding 模式， paddingFactor 存储空间冗余系数，1.0 表示没有冗余，1.5 表示 50% 的冗余，通常在 1.0 ～4.0 之间。这是 MongoDB 根据文档的频繁变化来调整的，我们无法控制，但是在 compact 的时候可以指定这个参数以控制压缩后的 Document 占用的实际空间：<a href="https://docs.mongodb.com/manual/reference/command/compact/#compact-paddingfactor" target="_blank" rel="noopener">https://docs.mongodb.com/manual/reference/command/compact/#compact-paddingfactor</a>。</p>
+</li>
+<li><p>usePowerOf2Sizes 模式( db.collection.stats())，从 MongoDB v2.6 开始作为默认的存储分配方式：<a href="https://docs.mongodb.com/v2.6/reference/command/collMod/#usePowerOf2Sizes" target="_blank" rel="noopener">https://docs.mongodb.com/v2.6/reference/command/collMod/#usePowerOf2Sizes</a>，按照 2 的 N 次方进行存储空间分配，最小分配 32 bytes，即 32，64，128，256…16777216。MongoDB v3.0 之前当 Document 的空间分配超过 4M 以后就会按照四舍五入的方式分配最接近的 N megabyte。v3.0 开始是达到 2M 以后按照 2M 为最小单位进行增长分配：<a href="https://docs.mongodb.com/manual/core/mmapv1/#power-of-2-sized-allocations" target="_blank" rel="noopener">https://docs.mongodb.com/manual/core/mmapv1/#power-of-2-sized-allocations</a>。</p>
+</li>
+<li><p>nopadding  模式，MongoDB v3.0 之后新增的一种分配方式，顾名思义最适合 insert-only 或者 update 不改变 Document size 的场景。</p>
+</li>
+</ul>
+</li>
+<li><p>Free Memory 会尽可能（100%）被用来做 Cache 以提高性能。</p>
+</li>
+<li><p>Database Level Concurrency，数据库级别的锁。</p>
+</li>
+<li><p>数据库层级分配存储文件，不会自动回收分配出去的空间。</p>
+</li>
+</ul>
+<p><a href="https://docs.mongodb.com/manual/core/wiredtiger/" target="_blank" rel="noopener">WiredTiger </a> 存储引擎相比较 MMAPv1：</p>
+<ul>
+<li><p>Document Level Concurrency，文档那个级别的锁。</p>
+</li>
+<li><p>Snapshot and Checkpoint，故障恢复支持 Snapshot 和 Journal 的方式。</p>
+</li>
+<li><p>Collection 层级分配存储文件，并及时回收空间，优化压缩且可配置压缩算法。</p>
+</li>
+<li><p>v3.2 以后可以配置最大占用内存空间。</p>
+</li>
+</ul>
+<h2 id="Data-File-Structure"><a href="#Data-File-Structure" class="headerlink" title="Data File Structure"></a>Data File Structure</h2><p>MongoDB 的文件分为 3 种，分别是</p>
+<ul>
+<li><p>Journal File，日志文件，存放在 MongoDB 数据目录下的 journal 子目录下；</p>
+</li>
+<li><p>Namespace File，命名空间文件，后缀名为 『.ns』 的文件；</p>
+</li>
+<li><p>Data File，数据文件，存放 Document 和 Index，以 Collection Name 作为文件名前缀的文件。</p>
+</li>
+</ul>
+<h3 id="Journal-File"><a href="#Journal-File" class="headerlink" title="Journal File"></a>Journal File</h3><p>ref：<a href="https://docs.mongodb.com/v2.6/core/journaling/" target="_blank" rel="noopener">https://docs.mongodb.com/v2.6/core/journaling/</a></p>
+<p>存储在单独的 『journal』子目录下面，以 『<strong>j._</strong>』 作为文件名前缀。MongoDB 启动的时候会默认创建 3 个大小为 1 G 的空  journal file（append-only） 备用，当一个 journal file 中操作全部落地以后，MongoDB 便会删除该 journal file，除非有持续海量的数据写入，否也一般只会有 2 ，3 个 journal file。正常的关闭 MongoDB 会删除 journal file。将 Journal File 和 Data File 放在不同的 FileSystem 上可以加速频繁顺序写的性能。</p>
+<p><a href="https://docs.mongodb.com/v2.6/reference/configuration-options/#storage.smallFiles" target="_blank" rel="noopener">调整 MongoDB 默认文件的大小</a>，可以将 Journal File 的默认大小从 1 G 改为 128M。</p>
+<h3 id="Namespace-File"><a href="#Namespace-File" class="headerlink" title="Namespace File"></a>Namespace File</h3><p>ref：<a href="https://docs.mongodb.com/v2.6/reference/limits/#namespaces" target="_blank" rel="noopener">https://docs.mongodb.com/v2.6/reference/limits/#namespaces</a></p>
+<p>MongoDB 每个 database 中都会包含一个后缀名为 『<strong>.ns</strong>』 的文件，用于存储 namespce 信息，实现上是一个 Hash Table 可以快速地定位某个 namespce 在 Data File 中位置。namespace 长度最大为 120 bytes（包括 『<strong>.</strong>』 分隔符在内不超过 120 个字符）。namaspace 在对应的数据结构大小为 624 bytes，默认一个 namaspce file  的大小为 16 M，也就是说可以支持 16M/624=26715 个 namespace。最大可通过参数配置为 2 G 大小。</p>
+<p>Namespace 的数据结构如下所示：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">Node &#123;</span><br><span class="line">    int hash;</span><br><span class="line">    Namespace key;</span><br><span class="line">    NamespaceDetails value;</span><br><span class="line">&#125;;</span><br></pre></td></tr></table></figure>
+<ul>
+<li><p>hash： namespace 的 hash 值，使用的线性探测方式。</p>
+</li>
+<li><p>key：namaspce ，是一个长度为 120 bytes 的字符数组。</p>
+</li>
+<li><p>value：namespace 的详情，包括在 Data File 中起止位置（第一个 Extent 以及最后一个 Extent 的位置）及其他信息。</p>
+</li>
+</ul>
+<h3 id="Data-File"><a href="#Data-File" class="headerlink" title="Data File"></a>Data File</h3><p>ref：<a href="https://docs.mongodb.com/v2.6/faq/storage/#preallocated-data-files" target="_blank" rel="noopener">https://docs.mongodb.com/v2.6/faq/storage/#preallocated-data-files</a></p>
+<p>MongoDB 的 Data 和 Index 都存放在 Data File 中。为了防止文件系统碎片化， MongoDB 会以特定的 size 预先分配 Data File，命名从 0 开始：&lt;database_name&gt;.0, &lt;database_name&gt;.1…&lt;database_name&gt;.N， 第一个文件为 64M，第二个位 128M，直到 2G，之后都以 2G 大小来分配，也就是 MongDB 的 Data File 单个最大为 2G。</p>
+<img src="/2017/12/10/MongoDB-datatypes-storage/data-structure.png">
+<p>Data File 结构如上图所示：</p>
+<ul>
+<li><p>一个 Data File 由多个 Extent 组成，一个 Extent 由多个  Record 组成，Record 中存储 MongoDB Document。Extent 和 Record 都被实现成双向链表。</p>
+</li>
+<li><p>一个 Extent 只会包含一个 Collection 的 Data 或者 Index，但是同一个 Extent 不会既有 Data 又有 Index。</p>
+</li>
+<li><p>一个 Collection 由多个 Extent 组成，这些 Extent 可以分布在多个 Data File 中。</p>
+</li>
+<li><p>Document 删除或移动（Not in-place update）后留下的未被使用的 Record 会被标记为 『Deleted Record』 而可以重新分配出去，<strong>但不会主动回收</strong>。『Deleted Record』在实现上会按照不同的 Size 组织成链表，加速重新分配过程。删除 Document 释放出来的 Extent 会被放到 Data File 的 Extent Free List 中。</p>
+</li>
+</ul>
+<p>关于 db.stats() 的几个 Size 的区别与联系：</p>
+<ul>
+<li><p>dataSize： Records Total Size，Record 中包括 Header + BSON Data + Padding。</p>
+</li>
+<li><p>storageSize/indexSize： Extents Total Size，由于包含了 Delete Record 所以比 dataSize 大。</p>
+</li>
+<li><p>fileSize： 文件系统中文件的大小，包括了 Data Extent 、Index Extent 以及未被使用的空间，不会随着 DB 中 Document 的删除而减少。</p>
+</li>
+</ul>
+<h4 id="Insert-Document"><a href="#Insert-Document" class="headerlink" title="Insert Document"></a>Insert Document</h4><ol>
+<li><p>检查 Namespace 对应的 『Deleted Record』 中是否有合适 Size 的 Record，如果有则直接复用这个空间，写入 Document（注：Extent 中空闲空间会被作为一个 Big Deleted Record 处理）；</p>
+</li>
+<li><p>检查 Data File 的 Extent Free List 里面是否有合适大小的空闲 Extent 可用，如果有则使用空闲的 Extent，写入 Document；</p>
+</li>
+<li><p>否则就要创建新的 Extent，写入 Document 。如果 Data File 没有足够的空间创建 Extent 则创建新的 Data File。</p>
+</li>
+</ol>
+<h4 id="Delete-Document"><a href="#Delete-Document" class="headerlink" title="Delete Document"></a>Delete Document</h4><p>删除 Document 释放出来的 Record 会作为 『Deleted Record』 复用，但不会主动回收。无法被复用的 Record 就会成为存储碎片，需要通过 <a href="https://docs.mongodb.com/manual/reference/command/compact/" target="_blank" rel="noopener">Compact </a>操作来改善。</p>
+<h4 id="Update-Document"><a href="#Update-Document" class="headerlink" title="Update Document"></a>Update Document</h4><p>In-place Update，否则就是 Delete + Insert 操作。释放出来的 Record 作为 『Deleted Record』 被复用。非 In-place Update 会导致存储碎片，可以通过调整 Document 空间分配模式来改善。</p>
+<h4 id="Query-Document"><a href="#Query-Document" class="headerlink" title="Query Document"></a>Query Document</h4><p>没有索引的情况下就只能遍历整个 Collection ，直到找到对应的 Record（Document）。建立索引可以加速查询。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/MongoDB/" rel="tag"># MongoDB</a>
+            
+              <a href="/tags/datatypes/" rel="tag"># datatypes</a>
+            
+              <a href="/tags/MMAPv1/" rel="tag"># MMAPv1</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2016/02/15/tornado.web_secure_cookies_xsrf/" rel="next" title="tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护">
+                  <i class="fa fa-chevron-left"></i> tornado.web.RequestHandler 安全 Cookie 与 XSRF 防护
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2019/05/20/v2ray.tls.nginx/" rel="prev" title="v2ray + Nginx + TLS(CentOS 7)">
+                  v2ray + Nginx + TLS(CentOS 7) <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#What-is-MongoDB"><span class="nav-number">1.</span> <span class="nav-text">What is MongoDB?</span></a></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Data-Type"><span class="nav-number">2.</span> <span class="nav-text">Data Type</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#BSON-vs-JSON"><span class="nav-number">2.1.</span> <span class="nav-text">BSON vs JSON</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#BSON-Types"><span class="nav-number">2.2.</span> <span class="nav-text">BSON Types</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Comparison-and-Sort-Order"><span class="nav-number">2.3.</span> <span class="nav-text">Comparison and Sort Order</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#ObjectId"><span class="nav-number">2.4.</span> <span class="nav-text">ObjectId</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#MMAPv1-Storage-Engine"><span class="nav-number">3.</span> <span class="nav-text">MMAPv1 Storage Engine</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Data-File-Structure"><span class="nav-number">3.1.</span> <span class="nav-text">Data File Structure</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#Journal-File"><span class="nav-number">3.1.1.</span> <span class="nav-text">Journal File</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Namespace-File"><span class="nav-number">3.1.2.</span> <span class="nav-text">Namespace File</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Data-File"><span class="nav-number">3.1.3.</span> <span class="nav-text">Data File</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Insert-Document"><span class="nav-number">3.1.3.1.</span> <span class="nav-text">Insert Document</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Delete-Document"><span class="nav-number">3.1.3.2.</span> <span class="nav-text">Delete Document</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Update-Document"><span class="nav-number">3.1.3.3.</span> <span class="nav-text">Update Document</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Query-Document"><span class="nav-number">3.1.3.4.</span> <span class="nav-text">Query Document</span></a></li></ol></li></ol></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

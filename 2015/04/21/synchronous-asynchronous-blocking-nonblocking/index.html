@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="1 同步与异步同步和异步关注点是消息通信机制 (synchronous communication/ asynchronous communication)，是一种编程模型。  在同步模型下，由消息的处理者主动去等待消息的提供者。也就是说在发出一个“调用”后，在没有得到结果之前，该“调用”就不返回，但是一旦调用返回，就得到了返回值。  在异步模型下，由消息提供者来通知处理者可以提供需要的结果（通知">
+<meta name="keywords" content="blocking,nonblocking,asynchronous,synchronous,UNIX I&#x2F;O">
+<meta property="og:type" content="article">
+<meta property="og:title" content="同步、异步与阻塞、非阻塞，UNIX I&#x2F;O模型">
+<meta property="og:url" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="1 同步与异步同步和异步关注点是消息通信机制 (synchronous communication/ asynchronous communication)，是一种编程模型。  在同步模型下，由消息的处理者主动去等待消息的提供者。也就是说在发出一个“调用”后，在没有得到结果之前，该“调用”就不返回，但是一旦调用返回，就得到了返回值。  在异步模型下，由消息提供者来通知处理者可以提供需要的结果（通知">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/blocking_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/nonblocking_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/mutiplexing_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/sig_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/sig_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/compare_model.png">
+<meta property="og:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/compare_model.png">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.337Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="同步、异步与阻塞、非阻塞，UNIX I&#x2F;O模型">
+<meta name="twitter:description" content="1 同步与异步同步和异步关注点是消息通信机制 (synchronous communication/ asynchronous communication)，是一种编程模型。  在同步模型下，由消息的处理者主动去等待消息的提供者。也就是说在发出一个“调用”后，在没有得到结果之前，该“调用”就不返回，但是一旦调用返回，就得到了返回值。  在异步模型下，由消息提供者来通知处理者可以提供需要的结果（通知">
+<meta name="twitter:image" content="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/blocking_model.png">
+  <link rel="canonical" href="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>同步、异步与阻塞、非阻塞，UNIX I/O模型 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/04/21/synchronous-asynchronous-blocking-nonblocking/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">同步、异步与阻塞、非阻塞，UNIX I/O模型
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-04-21 23:28:43" itemprop="dateCreated datePublished" datetime="2015-04-21T23:28:43+08:00">2015-04-21</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/服务端基础/" itemprop="url" rel="index"><span itemprop="name">服务端基础</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="1-同步与异步"><a href="#1-同步与异步" class="headerlink" title="1 同步与异步"></a>1 同步与异步</h4><p>同步和异步关注点是<strong>消息通信机制</strong> (synchronous communication/ asynchronous communication)，是一种编程模型。</p>
+<ul>
+<li><p>在同步模型下，由消息的处理者主动去等待消息的提供者。也就是说在发出一个“调用”后，在没有得到结果之前，该“调用”就不返回，但是一旦调用返回，就得到了返回值。</p>
+</li>
+<li><p>在异步模型下，由消息提供者来通知处理者可以提供需要的结果（通知机制由异步实现模型来保证）。也就是说在“调用”在发出后就立即返回了，不需要等待结果，换句话说，调用者不会立刻得到结果。“被调用者”有结果提供时会主动通知调用者（一般通过状态更新(如.NET APM)或者回调函数(如Node.js,Tornado)的形式）。</p>
+</li>
+</ul>
+<p>举个通俗的例子：</p>
+<blockquote>
+<p>你打电话问书店老板有没有《分布式系统》这本书，如果是同步通信机制，书店老板会说，“你稍等，我查一下”，然后开始查啊查，等查好了（可能是5秒，也可能是一天）告诉你结果（返回结果）。而异步通信机制，书店老板直接告诉你我查一下啊，查好了打电话给你，然后直接挂电话了（不返回结果）。然后查好了，他会主动打电话给你。在这里老板通过“回电”这种方式来回调。</p>
+</blockquote>
+<h4 id="2-阻塞与非阻塞"><a href="#2-阻塞与非阻塞" class="headerlink" title="2 阻塞与非阻塞"></a>2 阻塞与非阻塞</h4><p>阻塞和非阻塞关注的是<strong>线程在等待调用结果（消息、结果）时的状态。</strong></p>
+<ul>
+<li><p>阻塞调用是指调用结果返回之前，当前线程做不了其他事情（<strong><em>被挂起或者自旋</em></strong>），调用线程只有在得到结果之后才会返回。</p>
+</li>
+<li><p>非阻塞调用指在不能立刻得到结果之前，该调用不会阻塞当前线程（例如返回一个结果代理对象或者错误码）。</p>
+</li>
+</ul>
+<p>还是上面的例子</p>
+<blockquote>
+<p>你打电话问书店老板有没有《分布式系统》这本书，你如果是阻塞式调用，你会一直把自己“挂起”，直到得到这本书有没有的结果，如果是非阻塞式调用，你不管老板有没有告诉你，你自己先一边去玩了， 当然你也要偶尔过几分钟check一下老板有没有返回结果。</p>
+</blockquote>
+<p><strong>在这里阻塞与非阻塞与是否同步异步无关</strong>，跟老板通过什么方式回答你结果无关。</p>
+<h4 id="3-UNIX-I-O模型"><a href="#3-UNIX-I-O模型" class="headerlink" title="3 UNIX I/O模型"></a>3 UNIX I/O模型</h4><p>在<a href="http://book.douban.com/subject/1500149/" target="_blank" rel="noopener">《UNIX网络编程卷I》</a>第6章中定义如下几种I/O模型：</p>
+<ul>
+<li>阻塞式I/O模型（blocking I/O）</li>
+<li>非阻塞式I/O模型（noblocking I/O）</li>
+<li>I/O复用（mutiplexing， select/poll/epoll）</li>
+<li>信号驱动I/O（SIGIO)</li>
+<li>异步I/O（AIO）</li>
+</ul>
+<p>通常一个输入包括两个过程：</p>
+<ol>
+<li>等待数据准备好；</li>
+<li>从内核向进程空间复制数据。</li>
+</ol>
+<p>就socket的输入操作来说，第一步就是等待所有的数据从网络中达到。当所有分组到达时，它被复制到内核中的某个缓冲区。第二步就是把数据从缓冲区复制到应用的进程缓冲区。</p>
+<a id="more"></a>
+<h5 id="3-1-阻塞式I-O模型："><a href="#3-1-阻塞式I-O模型：" class="headerlink" title="3.1 阻塞式I/O模型："></a>3.1 阻塞式I/O模型：</h5><img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/blocking_model.png">
+<p>理论上讲，默认情况下所有的socket都是阻塞的。如上图所示，我们把recvfrom函数视为系统调用，这样便于用于区分应用进程和内核。不论操作系统如何实现，一般该调用都会导致从应用进程空间切换到内核空间运行，一段时间后再切换回来。在阻塞式I/O模型中，进程调用recvfrom函数，其系统调用直到数据报全部到达并从内核复制到应用进程缓存区或者发生错误才返回。从调用recvfrom开始直到它返回的这段时间是被阻塞的。</p>
+<h5 id="3-2-非阻塞式I-O模型"><a href="#3-2-非阻塞式I-O模型" class="headerlink" title="3.2 非阻塞式I/O模型"></a>3.2 非阻塞式I/O模型</h5><p>进程把一个socket设置成非阻塞是在通知内核，当所有的I/O操作非得把本进程投入睡眠才能完成时，不要把进程投入睡眠而是返回一个错误。</p>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/nonblocking_model.png">
+<p>前三次调用recvfrom时没有数据可返回，因此内核转而激励返回一个EWOULDBLOCK错误。第四次调用时数据报已经准备好了，它才被复制进应用进程缓冲区，于是recvfrom成功返回。<br>当一个进程像这样对一个非阻塞描述符循环调用recvfrom时，我们称之为轮询（polling）。应用进程持续轮询内核，以查看某个操作是否就绪。这么做往往消耗大量的CPU时间，不过这种模型偶尔会遇到，通常是在提供某一种功能的系统中才有。</p>
+<h5 id="3-3-I-O复用模型"><a href="#3-3-I-O复用模型" class="headerlink" title="3.3 I/O复用模型"></a>3.3 I/O复用模型</h5><p>有了I/O复用（I/O mutiplexing），我们就可以调用select或者poll，阻塞在这两个系统调用中的某一个之上，而不是阻塞在真正的I/O系统调用上。</p>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/mutiplexing_model.png">
+<p>我们阻塞于select调用，等待数据报socket变得可读。当select返回可读这个条件时，我们调用recvfrom把所有数据报复制到应用进程缓冲区。<br>从模型上看I/O复用相对于阻塞式I/O并没有什么优势，事实上还用了两个系统调用（select/recvfrom），I/O复用还稍有劣势。不过由于select能够同时等待多个描述符，这个功能还是很有用。</p>
+<p><strong><em>与I/O复用密切相关的另一种I/O模型是在多线程中使用阻塞式I/O，这种模型与I/O复用极为相似，但是由于它没有使用select阻塞在多个文件描述符上，而是使用多个线程（每个描述符，一个线程），这样每个线程都可以自由地调用诸如recvfrom之类的阻塞式I/O系统调用。</em></strong></p>
+<h5 id="3-4-信号驱动式I-O"><a href="#3-4-信号驱动式I-O" class="headerlink" title="3.4 信号驱动式I/O"></a>3.4 信号驱动式I/O</h5><p>让内核在描述符在就绪的时候发送SIGIO信号通知我们，我们称这种模型为信号驱动式I/O。</p>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/sig_model.png">
+<p>无论如何处理SIGIO信号，这种模型的优势在于等待数据报到达期间进程不被阻塞。直到调用recvfrom时，数据才从内核复制到应用进程空间缓冲区。</p>
+<h5 id="3-5-异步I-O模型"><a href="#3-5-异步I-O模型" class="headerlink" title="3.5 异步I/O模型"></a>3.5 异步I/O模型</h5><p>异步I/O（asynchronous I/O）由POSIX规范定义。与POSIX规范的实时函数一致，一般地说这些函数的工作机制是：告知内核启动某个操作，并让内核在整个操作（包括从内核复制数据到我们应用的进程空间）完成后通知我们（<strong><em>这个是不是与编程模型的异步定义看起来一样</em></strong>）。</p>
+<p>异步I/O模型与信号驱动式I/O的主要区别在于socket输入操作的第二步，在异步I/O模型中数据由内核复制到用户进程空间由模型完成后通知我们。换句话说，信号驱动I/O是由内核通知我们什么时候可以启动一个I/O操作，而异步I/O模型是由内核通知我们I/O操作什么时候完成。</p>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/sig_model.png">
+<p><strong>上述阻塞式I/O模型、非阻塞式I/O模型、复用I/O模型、信号驱动式I/O，不同之处仅在在socket输入操作的第一步等待数据报完成就绪阶段，在阻塞式I/O模型、I/O复用模型中调用进程会被阻塞，非阻塞式I/O模型与信号驱动式I/O模型不会阻塞。第二步都是相同的，都需要调用recvfrom之类的系统调用等待数据从内核复制到应用进程空间。在异步I/O模型中这两个阶段都要处理，从而不同于其他4种模型。</strong></p>
+<p>POSXI把这两个术语定义如下：</p>
+<ul>
+<li>同步I/O操作（synchronouns I/O operation）导致请求进程阻塞，直到I/O操作完成；</li>
+<li>异步I/O操作（asynchronous I/O operation）不导致请求进程阻塞。</li>
+</ul>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/compare_model.png">
+<p><strong>根据上述定义，我们的前4种模型——阻塞式I/O模型、非阻塞式I/O模型、I/O复用模型和信号驱动模型都是同步I/O模型，因为其中真正的I/O操作（recvfrom）将阻塞进程。只有异步模型与POSIX定义的异步I/O相匹配。</strong></p>
+<img src="/2015/04/21/synchronous-asynchronous-blocking-nonblocking/compare_model.png">
+<h4 id="4-参考资料"><a href="#4-参考资料" class="headerlink" title="4 参考资料"></a>4 参考资料</h4><ol>
+<li><p>同步与异步，阻塞与非阻塞的内容及例子主要引用了知乎问题 <a href="http://www.zhihu.com/question/19732473" target="_blank" rel="noopener">“怎样理解阻塞非阻塞与同步异步的区别”</a> 中 <strong>卢伊、陈硕</strong> 的回答。</p>
+</li>
+<li><p>UNIX I/O模型参考引用<a href="http://book.douban.com/subject/1500149/" target="_blank" rel="noopener">《UNIX网络编程：卷一》</a>第六章。</p>
+</li>
+</ol>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/blocking/" rel="tag"># blocking</a>
+            
+              <a href="/tags/nonblocking/" rel="tag"># nonblocking</a>
+            
+              <a href="/tags/asynchronous/" rel="tag"># asynchronous</a>
+            
+              <a href="/tags/synchronous/" rel="tag"># synchronous</a>
+            
+              <a href="/tags/UNIX-I-O/" rel="tag"># UNIX I/O</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/04/21/python-attribute-lookup/" rel="next" title="python描述器与属性查找">
+                  <i class="fa fa-chevron-left"></i> python描述器与属性查找
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/04/22/mutiplexing-IO/" rel="prev" title="I/O 复用：select、poll和epoll">
+                  I/O 复用：select、poll和epoll <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#1-同步与异步"><span class="nav-number">1.</span> <span class="nav-text">1 同步与异步</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#2-阻塞与非阻塞"><span class="nav-number">2.</span> <span class="nav-text">2 阻塞与非阻塞</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#3-UNIX-I-O模型"><span class="nav-number">3.</span> <span class="nav-text">3 UNIX I/O模型</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#3-1-阻塞式I-O模型："><span class="nav-number">3.1.</span> <span class="nav-text">3.1 阻塞式I/O模型：</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-2-非阻塞式I-O模型"><span class="nav-number">3.2.</span> <span class="nav-text">3.2 非阻塞式I/O模型</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-3-I-O复用模型"><span class="nav-number">3.3.</span> <span class="nav-text">3.3 I/O复用模型</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-4-信号驱动式I-O"><span class="nav-number">3.4.</span> <span class="nav-text">3.4 信号驱动式I/O</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#3-5-异步I-O模型"><span class="nav-number">3.5.</span> <span class="nav-text">3.5 异步I/O模型</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#4-参考资料"><span class="nav-number">4.</span> <span class="nav-text">4 参考资料</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

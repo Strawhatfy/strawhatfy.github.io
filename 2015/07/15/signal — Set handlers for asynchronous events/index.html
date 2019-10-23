@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="原文：signal — Set handlers for asynchronous events Python的 signal 模块为使用信号处理器提供了一些途径。关于信号和处理器的工作过程有一些规则需要注意：  除非明确地重置处理器，否则一旦为一个特定的信号设置了处理器，该处理器就将一直有效（Python模仿了BSD的风格接口而不管底层是如何实现的）。唯一例外的是SIGCHLD信号处理器，其由底">
+<meta name="keywords" content="select,poll,python,signal,handler,asynchronous">
+<meta property="og:type" content="article">
+<meta property="og:title" content="signal — Set handlers for asynchronous events">
+<meta property="og:url" content="http://yoursite.com/2015/07/15/signal — Set handlers for asynchronous events/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="原文：signal — Set handlers for asynchronous events Python的 signal 模块为使用信号处理器提供了一些途径。关于信号和处理器的工作过程有一些规则需要注意：  除非明确地重置处理器，否则一旦为一个特定的信号设置了处理器，该处理器就将一直有效（Python模仿了BSD的风格接口而不管底层是如何实现的）。唯一例外的是SIGCHLD信号处理器，其由底">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.335Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="signal — Set handlers for asynchronous events">
+<meta name="twitter:description" content="原文：signal — Set handlers for asynchronous events Python的 signal 模块为使用信号处理器提供了一些途径。关于信号和处理器的工作过程有一些规则需要注意：  除非明确地重置处理器，否则一旦为一个特定的信号设置了处理器，该处理器就将一直有效（Python模仿了BSD的风格接口而不管底层是如何实现的）。唯一例外的是SIGCHLD信号处理器，其由底">
+  <link rel="canonical" href="http://yoursite.com/2015/07/15/signal — Set handlers for asynchronous events/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>signal — Set handlers for asynchronous events | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/07/15/signal — Set handlers for asynchronous events/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">signal — Set handlers for asynchronous events
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-07-15 21:04:01" itemprop="dateCreated datePublished" datetime="2015-07-15T21:04:01+08:00">2015-07-15</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/python/" itemprop="url" rel="index"><span itemprop="name">python</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <p>原文：<a href="https://docs.python.org/2/library/signal.html" target="_blank" rel="noopener">signal — Set handlers for asynchronous events</a></p>
+<p>Python的 signal 模块为使用信号处理器提供了一些途径。关于信号和处理器的工作过程有一些规则需要注意：</p>
+<ul>
+<li><p>除非明确地重置处理器，否则一旦为一个特定的信号设置了处理器，该处理器就将一直有效（Python模仿了BSD的风格接口而不管底层是如何实现的）。唯一例外的是SIGCHLD信号处理器，其由底层实现决定。</p>
+</li>
+<li><p>无法从critical sections临时阻塞信号（因为在类UNIX系统中都不支持）。</p>
+</li>
+<li><p>尽管Python信号处理器能在接收到相应信号时立即被异步调用，但实际上是在Python解释器的原子指令之间被调用（注： 意思就是Python信号处理器的调用必须在一条“原子指令”执行完之后才能被调用）。这就意味着若信号到达时Python解释器正在执行一个长时间的纯C计算（比如正则表达式处理一大段文本），那么信号处理器的调用将会被推迟不确定时间。</p>
+</li>
+<li><p>当一个信号在I/O操作期间到来，信号处理器调用完成后可能导致I/O操作抛出异常。这个依赖于顶层Unix系统的系统调用中断语义。</p>
+</li>
+<li><p>因为 C 信号处理器总是会返回，所以就没有处理类似  SIGFPE 和 SIGSEGV 导致的同步错误（注： 在POSIX兼容的平台上，SIGFPE（floating-point exception，浮点异常）是当一个进程执行了一个错误的算术操作时发送给它的信号，SIGSEGV（egmentation violation， 段违例）是当一个进程执行了一个无效的内存引用，或发生段错误时发送给它的信号。）。</p>
+</li>
+<li><p>Python默认设置了一些信号处理器：SIGPIPE信号会被忽略（所以在管道或者套接字上 “写” 错误时将抛出一个普通的Python异常）；SIGINT信号会被包装成一个 KeyboardInterrupt 异常。这些信号处理器都可以被overriden。</p>
+</li>
+<li><p>多线程信号编程时需要注意一些问题。在同时使用多线程和信号时需要记住的基本规则：signal() 只能在主线程中执行；任何线程都可以执行 alarm(), getsignal(), pause(), setitimer()或者 getitimer()；只有主线程可以设置新的信号处理器，也只有主线程可以接受到信号（尽管底层线程实现支持将信号发送给任何一个独立线程，但是Python的信号模块强制实现只能主线程能接受信号）。这就意味着在Python中信号不能用于线程间通信，使用锁来代替。</p>
+</li>
+</ul>
+<h2 id="变量"><a href="#变量" class="headerlink" title="变量"></a>变量</h2><h2 id="signal-SIG-DFL"><a href="#signal-SIG-DFL" class="headerlink" title="signal.SIG_DFL"></a>signal.SIG_DFL</h2><ul>
+<li>这是两个标准信号处理选项之一，该处理选项将简单地执行默认的信号处理函数。例如，在大多数系统中收到 SIGQUIT 信号后转存文件（dump core ）并退出，而忽略掉 SIGCHLD 信号。</li>
+</ul>
+<h2 id="signal-SIG-IGN"><a href="#signal-SIG-IGN" class="headerlink" title="signal.SIG_IGN"></a>signal.SIG_IGN</h2><ul>
+<li>这是另一个默认信号处理器，该处理选项将会忽略指定的信号。例如，signal(SIGCHLD, SIG_IGN)</li>
+</ul>
+<h2 id="SIG"><a href="#SIG" class="headerlink" title="SIG"></a>SIG</h2><ul>
+<li>All the signal numbers are defined symbolically. For example, the hangup signal is defined as signal.SIGHUP; the variable names are identical to the names used in C programs, as found in . The Unix man page for ‘signal()‘ lists the existing signals (on some systems this is signal(2), on others the list is in signal(7)). Note that not all systems define the same set of signal names; only those names defined by the system are defined by this module. （注：每一个信号名称是有一个代表正整数的宏来表示，但是不应该试图去推测宏代表的具体数字，而是直接使用信号名称。这是因为这个数字会随着系统的不同或同一系统的不同版本而不同，但是名称还算是标准化和统一的）<a id="more"></a>
+signal.CTRL_C_EVENT</li>
+</ul>
+<hr>
+<ul>
+<li>Windows 上与 CTRL+C 相对应的控制事件。只能与 os.kill() 配合使用。</li>
+<li>Availability: Windows.</li>
+<li>New in version 2.7.</li>
+</ul>
+<h2 id="signal-CTRL-BREAK-EVENT"><a href="#signal-CTRL-BREAK-EVENT" class="headerlink" title="signal.CTRL_BREAK_EVENT"></a>signal.CTRL_BREAK_EVENT</h2><ul>
+<li>Windows 上与 CTRL+BREAK   相对应的控制事件。只能与 os.kill() 配合使用。</li>
+<li>Availability: Windows.</li>
+<li>New in version 2.7.</li>
+</ul>
+<h2 id="signal-NSIG"><a href="#signal-NSIG" class="headerlink" title="signal.NSIG"></a>signal.NSIG</h2><ul>
+<li>比系统中定义的信号数大1的整数（注: 系统中定义的信号数量，由于信号是从0开始连续分配的，所以NSIG比系统所定义的最大信号数值大1）。</li>
+</ul>
+<h2 id="signal-ITIMER-REAL"><a href="#signal-ITIMER-REAL" class="headerlink" title="signal.ITIMER_REAL"></a>signal.ITIMER_REAL</h2><ul>
+<li>计时器的值实时递减（以系统实时时间来计算 ），超时发送 SIGALRM 信号。</li>
+</ul>
+<h2 id="signal-ITIMER-VIRTUAL"><a href="#signal-ITIMER-VIRTUAL" class="headerlink" title="signal.ITIMER_VIRTUAL"></a>signal.ITIMER_VIRTUAL</h2><ul>
+<li>进程执行时递减计时器的值（只计算（用户态）进程的执行时间），超时发送 SIGVTALRM  信号。</li>
+</ul>
+<h2 id="signal-ITIMER-PROF"><a href="#signal-ITIMER-PROF" class="headerlink" title="signal.ITIMER_PROF"></a>signal.ITIMER_PROF</h2><ul>
+<li>进程和系统执行时都递减计时器的值。结合  ITIMER_VIRTUAL， 常常被用于分析程序在用户态和内核态花费的时间。超时发送 SIGPROF  信号。</li>
+</ul>
+<h2 id="异常"><a href="#异常" class="headerlink" title="异常"></a>异常</h2><h2 id="exception-signal-ItimerError"><a href="#exception-signal-ItimerError" class="headerlink" title="exception signal.ItimerError"></a>exception signal.ItimerError</h2><ul>
+<li>setitimer()  和 getitimer() 底层实现抛出该异常。当调用 setitimer() 传递一个不合法的间隔时间或者负数时间时会抛出该异常。该异常继承自 IOError。</li>
+</ul>
+<h2 id="函数"><a href="#函数" class="headerlink" title="函数"></a>函数</h2><h2 id="signal-alarm-time"><a href="#signal-alarm-time" class="headerlink" title="signal.alarm(time)"></a>signal.alarm(time)</h2><ul>
+<li>如果 time 非0，函数将在 time 秒后向进程发送 SIGALRM 信号。任何时候只能有1个 alarm ，所以一旦调用该函数，之前设置的 alarm 都会被取消。函数返回前一次设置 alarm 到现在的时间。如果 time 为0，所有的 alarm 都会被取消。当之前没有设置过 alarm 时，函数返回0.(See the Unix man page alarm(2).)</li>
+<li>Availability: Unix.</li>
+</ul>
+<h2 id="signal-getsignal-signalnum"><a href="#signal-getsignal-signalnum" class="headerlink" title="signal.getsignal(signalnum)"></a>signal.getsignal(signalnum)</h2><ul>
+<li>调用该函数将返回指定信号的处理器，处理器可能为一个可调用的 Python  对象、signal.SIG_IGN、signal.SIG_DFL或者None。signal.SIG_IGN表示之前会忽略所有信号，ignal.SIG_DFL使用默认信号处理器处理信号，None表示之前没有为该信号设置处理器。</li>
+</ul>
+<h2 id="signal-pause"><a href="#signal-pause" class="headerlink" title="signal.pause()"></a>signal.pause()</h2><ul>
+<li>挂起进程以等待信号，信号到来时相应的处理器将被调用。无返回值，Windows 平台不可用 (See the Unix man page signal(2))  。</li>
+</ul>
+<h2 id="signal-setitimer-which-seconds-interval"><a href="#signal-setitimer-which-seconds-interval" class="headerlink" title="signal.setitimer(which, seconds[, interval])"></a>signal.setitimer(which, seconds[, interval])</h2><ul>
+<li>设置指定 seconds （与  alarm() 函数不同， seconds 可以为浮点数）后开始触发的间隔定时器，间隔定时器的类型由 which 参数指定，可以为 signal.ITIMER_REAL, signal.ITIMER_VIRTUAL 或者 signal.ITIMER_PROF。seconds 设置为0可以清除指定类型的间隔定时器。当一个间隔定时器触发时，将会向进程发送信号，具体的信号由间隔定时器指定的类型决定。<br>The old values are returned as a tuple: (delay, interval).<br>Attempting to pass an invalid interval timer will cause an ItimerError. </li>
+<li>Availability: Unix.</li>
+<li>New in version 2.6.</li>
+</ul>
+<h2 id="signal-getitimer-which"><a href="#signal-getitimer-which" class="headerlink" title="signal.getitimer(which)"></a>signal.getitimer(which)</h2><ul>
+<li>返回指定类型间隔定时器设置的间隔时间。</li>
+<li>Availability: Unix.</li>
+<li>New in version 2.6.</li>
+</ul>
+<h2 id="signal-set-wakeup-fd-fd"><a href="#signal-set-wakeup-fd-fd" class="headerlink" title="signal.set_wakeup_fd(fd)"></a>signal.set_wakeup_fd(fd)</h2><ul>
+<li>设置唤醒描述符为给定的描述符 fd。当收到信号后，一个 null （‘\0’）字节将被写入该描述符。函数库通过使用该函数来唤醒 poll 或者 select 调用以处理信号。该函数调用返回之前设置的唤醒描述符。唤醒描述符 fd 必须是非阻塞的，在再次调用 poll 或者 select 之前由函数库负责删除其中的任何字节。在多线程中，该函数仅允许在主线程中调用，尝试在非主线程嗲用时将引发 ValueError 异常。</li>
+<li>New in version 2.6.</li>
+</ul>
+<h2 id="signal-siginterrupt-signalnum-flag"><a href="#signal-siginterrupt-signalnum-flag" class="headerlink" title="signal.siginterrupt(signalnum, flag)"></a>signal.siginterrupt(signalnum, flag)</h2><ul>
+<li>改变系统调用的重试的行为：如果 flag 为 False，当指定信号中断系统调用后会自动重试，否则将会直接中断。函数无返回值。注意：使用 signal()  函数注册一个信号处理器会隐式使用 true 为指定信号调用 siginterrupt() 函数。</li>
+<li>New in version 2.6.</li>
+</ul>
+<h2 id="signal-signal-signalnum-handler"><a href="#signal-signal-signalnum-handler" class="headerlink" title="signal.signal(signalnum, handler)"></a>signal.signal(signalnum, handler)</h2><ul>
+<li>调用该函数为指定的信号设置信号处理器，信号处理器可以为一个具有2个参数的可调用对象、signal.SIG_IGN 或者 signal.SIG_DFL。函数返回之前设置的信号处理器。</li>
+<li>在多线程中，该函数仅允许在主线程中调用，尝试在非主线程嗲用时将引发 ValueError 异常。</li>
+<li>信号处理器具有2个参数：信号number、当前栈帧（None或者 frame 对象）</li>
+<li>在Windows平台上仅 SIGABRT, SIGFPE, SIGILL, SIGINT, SIGSEGV, or SIGTERM 可用，尝试使用其他信号将会引发 ValueError  异常。</li>
+</ul>
+<h2 id="示例"><a href="#示例" class="headerlink" title="示例"></a>示例</h2><p>Here is a minimal example program. It uses the alarm() function to limit the time spent waiting to open a file; this is useful if the file is for a serial device that may not be turned on, which would normally cause the os.open() to hang indefinitely. The solution is to set a 5-second alarm before opening the file; if the operation takes too long, the alarm signal will be sent, and the handler raises an exception.</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">handler</span><span class="params">(signum, frame)</span>:</span></span><br><span class="line">    <span class="keyword">print</span> <span class="string">'Signal handler called with signal'</span>, signum</span><br><span class="line">    <span class="keyword">raise</span> IOError(<span class="string">"Couldn't open device!"</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Set the signal handler and a 5-second alarmsignal.signal(signal.SIGALRM, handler)signal.alarm(5)</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># This open() may hang indefinitelyfd = os.open('/dev/ttyS0', os.O_RDWR)</span></span><br><span class="line"></span><br><span class="line">signal.alarm(<span class="number">0</span>)          <span class="comment"># Disable the alarm</span></span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/select/" rel="tag"># select</a>
+            
+              <a href="/tags/poll/" rel="tag"># poll</a>
+            
+              <a href="/tags/python/" rel="tag"># python</a>
+            
+              <a href="/tags/signal/" rel="tag"># signal</a>
+            
+              <a href="/tags/handler/" rel="tag"># handler</a>
+            
+              <a href="/tags/asynchronous/" rel="tag"># asynchronous</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/07/14/PEP 475 - Retry system calls failing with EINTR/" rel="next" title="PEP475-Retry system calls failing with EINTR">
+                  <i class="fa fa-chevron-left"></i> PEP475-Retry system calls failing with EINTR
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/07/22/Tornado.gen/" rel="prev" title="tornado.gen 模块解析">
+                  tornado.gen 模块解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#变量"><span class="nav-number">1.</span> <span class="nav-text">变量</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-SIG-DFL"><span class="nav-number">2.</span> <span class="nav-text">signal.SIG_DFL</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-SIG-IGN"><span class="nav-number">3.</span> <span class="nav-text">signal.SIG_IGN</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#SIG"><span class="nav-number">4.</span> <span class="nav-text">SIG</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-CTRL-BREAK-EVENT"><span class="nav-number">5.</span> <span class="nav-text">signal.CTRL_BREAK_EVENT</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-NSIG"><span class="nav-number">6.</span> <span class="nav-text">signal.NSIG</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-ITIMER-REAL"><span class="nav-number">7.</span> <span class="nav-text">signal.ITIMER_REAL</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-ITIMER-VIRTUAL"><span class="nav-number">8.</span> <span class="nav-text">signal.ITIMER_VIRTUAL</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-ITIMER-PROF"><span class="nav-number">9.</span> <span class="nav-text">signal.ITIMER_PROF</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#异常"><span class="nav-number">10.</span> <span class="nav-text">异常</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#exception-signal-ItimerError"><span class="nav-number">11.</span> <span class="nav-text">exception signal.ItimerError</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#函数"><span class="nav-number">12.</span> <span class="nav-text">函数</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-alarm-time"><span class="nav-number">13.</span> <span class="nav-text">signal.alarm(time)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-getsignal-signalnum"><span class="nav-number">14.</span> <span class="nav-text">signal.getsignal(signalnum)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-pause"><span class="nav-number">15.</span> <span class="nav-text">signal.pause()</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-setitimer-which-seconds-interval"><span class="nav-number">16.</span> <span class="nav-text">signal.setitimer(which, seconds[, interval])</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-getitimer-which"><span class="nav-number">17.</span> <span class="nav-text">signal.getitimer(which)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-set-wakeup-fd-fd"><span class="nav-number">18.</span> <span class="nav-text">signal.set_wakeup_fd(fd)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-siginterrupt-signalnum-flag"><span class="nav-number">19.</span> <span class="nav-text">signal.siginterrupt(signalnum, flag)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#signal-signal-signalnum-handler"><span class="nav-number">20.</span> <span class="nav-text">signal.signal(signalnum, handler)</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#示例"><span class="nav-number">21.</span> <span class="nav-text">示例</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

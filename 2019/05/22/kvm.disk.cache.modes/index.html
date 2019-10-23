@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="KVM 磁盘缓存模式本笔记内容无原创，整理自如下资料：  Linux中如何保证数据安全落盘 RHEL sect-virtualization_tuning_optimization_guide-blockio-caching GUIDES  5.3KQEMU Disk IO performance comparison: Native or threads? KVM总结-KVM性能优化之磁盘IO优">
+<meta name="keywords" content="KVM,Cache Mode,noe,writethrough,writeback,directsync,unsafe">
+<meta property="og:type" content="article">
+<meta property="og:title" content="KVM 磁盘缓存模式">
+<meta property="og:url" content="http://yoursite.com/2019/05/22/kvm.disk.cache.modes/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="KVM 磁盘缓存模式本笔记内容无原创，整理自如下资料：  Linux中如何保证数据安全落盘 RHEL sect-virtualization_tuning_optimization_guide-blockio-caching GUIDES  5.3KQEMU Disk IO performance comparison: Native or threads? KVM总结-KVM性能优化之磁盘IO优">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.333Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="KVM 磁盘缓存模式">
+<meta name="twitter:description" content="KVM 磁盘缓存模式本笔记内容无原创，整理自如下资料：  Linux中如何保证数据安全落盘 RHEL sect-virtualization_tuning_optimization_guide-blockio-caching GUIDES  5.3KQEMU Disk IO performance comparison: Native or threads? KVM总结-KVM性能优化之磁盘IO优">
+  <link rel="canonical" href="http://yoursite.com/2019/05/22/kvm.disk.cache.modes/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>KVM 磁盘缓存模式 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/05/22/kvm.disk.cache.modes/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">KVM 磁盘缓存模式
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2019-05-22 23:44:17" itemprop="dateCreated datePublished" datetime="2019-05-22T23:44:17+08:00">2019-05-22</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/virtualization/" itemprop="url" rel="index"><span itemprop="name">virtualization</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="KVM-磁盘缓存模式"><a href="#KVM-磁盘缓存模式" class="headerlink" title="KVM 磁盘缓存模式"></a>KVM 磁盘缓存模式</h1><p>本笔记内容无原创，整理自如下资料：</p>
+<ul>
+<li><a href="https://johng.cn/linux-io-sync/" target="_blank" rel="noopener">Linux中如何保证数据安全落盘</a></li>
+<li><a href="https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/virtualization_tuning_and_optimization_guide/sect-virtualization_tuning_optimization_guide-blockio-caching" target="_blank" rel="noopener">RHEL sect-virtualization_tuning_optimization_guide-blockio-caching</a></li>
+<li><a href="https://turlucode.com/qemu-disk-io-performance-comparison-native-or-threads-windows-10-version/#1528572626148-2b30f3e4-f00f" target="_blank" rel="noopener">GUIDES  5.3K<br>QEMU Disk IO performance comparison: Native or threads?</a></li>
+<li><a href="https://www.cnblogs.com/tcicy/p/10193613.html" target="_blank" rel="noopener">KVM总结-KVM性能优化之磁盘IO优化</a></li>
+</ul>
+<h2 id="Cache-modes"><a href="#Cache-modes" class="headerlink" title="Cache modes"></a>Cache modes</h2><p>KVM 目前支持的磁盘缓存模式主要有 none，writethrough，writeback，directsync，unsafe 这 5 种。后面 2 种通常很少使用到。</p>
+<h3 id="none"><a href="#none" class="headerlink" title="none"></a>none</h3><ul>
+<li>I/O from the guest is not cached on the host, but may be kept in a writeback disk cache. Use this option for guests with large I/O requirements.（guest 使用 writeback， host 不使用 page cache，相当于 guest 直接访问主机磁盘。）</li>
+</ul>
+<p>这种模式下虚拟机磁盘镜像文件或者块设备会使用 O_DIRECT 语义， 则 host 的 page cache 被绕过， I/O 直接在 qemu-kvm 的用户空间 buffers 和 host 的存储设备间发生。因为实际存储设备可能在写数据放到写队列后就上报写完成，虚拟机上的存储控制器被告知有回写缓存（writeback cache）， 所以 guest 需要下发刷盘（flush）命令来保证数据一致（落盘）。相当于直接访问 host 磁盘，性能不错。</p>
+<blockquote>
+<blockquote>
+<p>This mode causes qemu-kvm to interact with the disk image file or block device with O_DIRECT semantics, so the host page cache is bypassed and I/O happens directly between the qemu-kvm userspace buffers and the storage device. Because the actual storage device may report a write as completed when placed in its write queue only, the guest’s virtual storage adapter is informed that there is a writeback cache, so the guest would be expected to send down flush commands as needed to manage data integrity. Equivalent to direct access to your hosts’ disk,performance wise.</p>
+</blockquote>
+</blockquote>
+<h3 id="writethrough"><a href="#writethrough" class="headerlink" title="writethrough"></a>writethrough</h3><ul>
+<li>I/O from the guest is cached on the host but written through to the physical medium. （guest 使用 wirtethrough， host 使用 page cache。）</li>
+</ul>
+<p>这种模式下会为每次写操作执行 fdatasync（原文是 fsync 与后面 O_DSYNC 不太一致）， 是一种安全的缓存模式，不用担心丢失数据，但同时也比较慢。这种模式下虚拟机磁盘镜像文件或者块设备被设置成 O_DSYNC 语义， 必须等待所有写数据落盘以后才上报写完成。 host 的 page cache 工作在所谓的 writethrough 模式。guest 的存储控制器会被告知没有 writecache， 所以 guest 不必下发 flush 命令来保证数据一致。存储设备的行为好像是透过缓存（writethrough cache）。</p>
+<blockquote>
+<blockquote>
+<p>Writethrough make a fsync for each write. So it’s the more secure cache mode, you can’t loose data. It’s also the slower. This mode causes qemu-kvm to interact with the disk image file or block device with O_DSYNC semantics, where writes are reported as completed only when the data has been committed to the storage device. The host page cache is used in what can be termed a writethrough caching mode. The guest’s virtual storage adapter is informed that there is no writeback cache, so the guest would not need to send down flush commands to manage data integrity. The storage behaves as if there is a writethrough cache.<br><a id="more"></a></p>
+</blockquote>
+</blockquote>
+<h3 id="writeback"><a href="#writeback" class="headerlink" title="writeback"></a>writeback</h3><ul>
+<li>I/O from the guest is cached on the host.（guest 使用 writeback， host 使用 page cache。）</li>
+</ul>
+<p>这种模式下虚拟机磁盘镜像文件或者块设备不用使用 O_DSYNC 与 O_DIRECT 语义。guest 写数据到达 host page cache 便上报写完成，由 host 的 page cache 管理机制来负责将数据落盘。另外，guest 的虚拟磁盘控制器被告知使用 wirteback 缓存，需要下发 flush 命令来保证数据一致性。类似待由 RAM 缓存的 RAID 控制器。</p>
+<blockquote>
+<blockquote>
+<p>This mode causes qemu-kvm to interact with the disk image file or block device with neither O_DSYNC nor O_DIRECT semantics, so the host page cache is used and writes are reported to the guest as completed when placed in the host page cache, and the normal page cache management will handle commitment to the storage device. Additionally, the guest’s virtual storage adapter is informed of the writeback cache, so the guest would be expected to send down flush commands as needed to manage data integrity. Analogous to a raid controller with RAM cache.</p>
+</blockquote>
+</blockquote>
+<h3 id="directsync"><a href="#directsync" class="headerlink" title="directsync"></a>directsync</h3><ul>
+<li>Similar to writethrough, but I/O from the guest bypasses the host page cache.（guest 使用 writethrough， host 不使用 page cache）</li>
+</ul>
+<p>这种模式下虚拟机磁盘镜像文件或块设置同时使用 O_DSYNC 和 O_DIRECT 语义，绕过 host page cache，等数据落盘才上报写完成。与 writethrough 模式一样， directsync 模式不需要下发 flush 命令，对于不支持 writeback cache 的 guest 很有用（it is helpful to guests that do not send flushes when needed.）。这种模式是最后一种缓存与直接访问的组合语义，是缓存方式的补充。</p>
+<blockquote>
+<blockquote>
+<p>This mode causes qemu-kvm to interact with the disk image file or block device with both O_DSYNC and O_DIRECT semantics, where writes are reported as completed only when the data has been committed to the storage device, and when it is also desirable to bypass the host page cache. Like cache=writethrough, it is helpful to guests that do not send flushes when needed. It was the last cache mode added, completing the possible combinations of caching and direct access semantics.</p>
+</blockquote>
+</blockquote>
+<h3 id="unsafe"><a href="#unsafe" class="headerlink" title="unsafe"></a>unsafe</h3><ul>
+<li>The host may cache all disk I/O, and sync requests from guest are ignored.</li>
+</ul>
+<p>这种模式与前面讨论的 writecache 模式非常相似。该模式的关键点是由 guest 下发的 flush 命令都会被忽略。 使用这种模式也就意味着接受 host 故障导致数据丢失的风险，以换取性能。这个模式可以在安装系统的时候使用，但是不应该在生成环境使用。</p>
+<blockquote>
+<blockquote>
+<p>This mode is similar to the cache=writeback mode discussed above. The key aspect of this unsafe mode, is that all flush commands from the guests are ignored. Using this mode implies that the user has accepted the trade-off of performance over risk of data loss in the event of a host failure. Useful, for example, during guest install, but not for production workloads.</p>
+</blockquote>
+</blockquote>
+<h2 id="Conclusion"><a href="#Conclusion" class="headerlink" title="Conclusion"></a>Conclusion</h2><table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Host Page Cache</th>
+<th>Disk Write Cache</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>none</td>
+<td>disable</td>
+<td>enable</td>
+<td>balances performance and safety (better writes)</td>
+</tr>
+<tr>
+<td>writethrough</td>
+<td>enabled</td>
+<td>disable</td>
+<td>balances performance and safety (better reads)</td>
+</tr>
+<tr>
+<td>writeback</td>
+<td>enabled</td>
+<td>enable</td>
+<td>fast, can loose data on power outage depending on hardware used</td>
+</tr>
+<tr>
+<td>directsync</td>
+<td>disable</td>
+<td>disable</td>
+<td>safest but slowest (relative to the others)</td>
+</tr>
+<tr>
+<td>unsafe</td>
+<td>enable</td>
+<td>enable</td>
+<td>doesn’t flush data, fastest and unsafest</td>
+</tr>
+</tbody>
+</table>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/KVM/" rel="tag"># KVM</a>
+            
+              <a href="/tags/Cache-Mode/" rel="tag"># Cache Mode</a>
+            
+              <a href="/tags/noe/" rel="tag"># noe</a>
+            
+              <a href="/tags/writethrough/" rel="tag"># writethrough</a>
+            
+              <a href="/tags/writeback/" rel="tag"># writeback</a>
+            
+              <a href="/tags/directsync/" rel="tag"># directsync</a>
+            
+              <a href="/tags/unsafe/" rel="tag"># unsafe</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2019/05/20/v2ray.tls.nginx/" rel="next" title="v2ray + Nginx + TLS(CentOS 7)">
+                  <i class="fa fa-chevron-left"></i> v2ray + Nginx + TLS(CentOS 7)
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2019/07/07/ssl.cert/" rel="prev" title="SSL 自签名证书">
+                  SSL 自签名证书 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#KVM-磁盘缓存模式"><span class="nav-number">1.</span> <span class="nav-text">KVM 磁盘缓存模式</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#Cache-modes"><span class="nav-number">1.1.</span> <span class="nav-text">Cache modes</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#none"><span class="nav-number">1.1.1.</span> <span class="nav-text">none</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#writethrough"><span class="nav-number">1.1.2.</span> <span class="nav-text">writethrough</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#writeback"><span class="nav-number">1.1.3.</span> <span class="nav-text">writeback</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#directsync"><span class="nav-number">1.1.4.</span> <span class="nav-text">directsync</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#unsafe"><span class="nav-number">1.1.5.</span> <span class="nav-text">unsafe</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Conclusion"><span class="nav-number">1.2.</span> <span class="nav-text">Conclusion</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言HTTP1Connection 是 HTTP/1.x 连接的抽象，可作为 client 发起请求和解析响应，也可作为 server 接收请求和回应响应。这里主要分析 HTTP1Connection 中怎样实现对请求和响应数据的解析的。关于请求的发起和回应响应，涉及到如何写的实现，将在后续文章中分析。 在具体分析代码实现之前，先介绍一下 HTTP/1.x 相关的内容以方便后面对代码的理解。 HT">
+<meta name="keywords" content="HTTP1Connection,HTTP&#x2F;1.x">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.http1connection.HTTP1Connection 消息解析实现">
+<meta property="og:url" content="http://yoursite.com/2015/11/02/tornado.http1connection.HTTP1Connection/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言HTTP1Connection 是 HTTP/1.x 连接的抽象，可作为 client 发起请求和解析响应，也可作为 server 接收请求和回应响应。这里主要分析 HTTP1Connection 中怎样实现对请求和响应数据的解析的。关于请求的发起和回应响应，涉及到如何写的实现，将在后续文章中分析。 在具体分析代码实现之前，先介绍一下 HTTP/1.x 相关的内容以方便后面对代码的理解。 HT">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.340Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.http1connection.HTTP1Connection 消息解析实现">
+<meta name="twitter:description" content="引言HTTP1Connection 是 HTTP/1.x 连接的抽象，可作为 client 发起请求和解析响应，也可作为 server 接收请求和回应响应。这里主要分析 HTTP1Connection 中怎样实现对请求和响应数据的解析的。关于请求的发起和回应响应，涉及到如何写的实现，将在后续文章中分析。 在具体分析代码实现之前，先介绍一下 HTTP/1.x 相关的内容以方便后面对代码的理解。 HT">
+  <link rel="canonical" href="http://yoursite.com/2015/11/02/tornado.http1connection.HTTP1Connection/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.http1connection.HTTP1Connection 消息解析实现 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/11/02/tornado.http1connection.HTTP1Connection/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.http1connection.HTTP1Connection 消息解析实现
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-11-02 11:45:01" itemprop="dateCreated datePublished" datetime="2015-11-02T11:45:01+08:00">2015-11-02</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p><code>HTTP1Connection</code> 是 HTTP/1.x 连接的抽象，可作为 client 发起请求和解析响应，也可作为 server 接收请求和回应响应。这里主要分析 <code>HTTP1Connection</code> 中怎样实现对请求和响应数据的解析的。关于请求的发起和回应响应，涉及到如何写的实现，将在后续文章中分析。</p>
+<p>在具体分析代码实现之前，先介绍一下 HTTP/1.x 相关的内容以方便后面对代码的理解。</p>
+<h3 id="HTTP-1-x-简介"><a href="#HTTP-1-x-简介" class="headerlink" title="HTTP/1.x 简介"></a>HTTP/1.x 简介</h3><p>HTTP 协议是一个应用层协议，协议本身并没有规定使用它或它支持的层。事实上，HTTP 可以在任何互联网协议上，或其他网络上实现。HTTP 假定其下层协议提供可靠的传输。因此，任何能够提供这种保证的协议都可以被其使用。在TCP/IP 协议族上使用 TCP 作为其传输层。</p>
+<h4 id="版本"><a href="#版本" class="headerlink" title="版本"></a>版本</h4><p>HTTP 协议有多个版本 HTTP/1.x 和 HTTP/2.0。目前使用最广泛的是 HTTP/1.x，包括 HTTP/1.0 和 HTTP/1.1 两个版本，后者是对前者的升级改进，最大的不同有两点：</p>
+<ol>
+<li>默认支持持久连接，在一个 TCP 连接上可以传送多个 HTTP 请求和响应，减少了建立和关闭连接的消耗和延迟。</li>
+<li>支持 Host 请求头字段，使得 Web 服务器可以在同一个 IP 和 Port 上使用不同的 HostName 来创建多个虚拟 Web 站点。</li>
+</ol>
+<h4 id="请求（Request）"><a href="#请求（Request）" class="headerlink" title="请求（Request）"></a>请求（Request）</h4><h5 id="请求消息（Request-Message）"><a href="#请求消息（Request-Message）" class="headerlink" title="请求消息（Request Message）"></a>请求消息（Request Message）</h5><p>请求由客户端向服务器端发出，请求消息由下面 4 部分组成（<a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.1.1" target="_blank" rel="noopener">RFC 2616 Request</a>）：</p>
+<ol>
+<li>Request-Line，请求行，格式为：Method SP Request-URI SP HTTP-Version CRLF， eg. “GET /foo HTTP/1.1”。</li>
+<li>Request Header Fields，请求头，*(( general-header | request-header | entity-header ) CRLF)，在 HTTP/1.1 中除了 Host 外其他请求头都是可选的。</li>
+<li>空行，CRLF。</li>
+<li>消息体，[ message-body ]</li>
+</ol>
+<p>每个头字段由一个字段名称（name） + 冒号（:） + 字段值(value), 三部分组成，name 是大小写无关的，value 前可以添加任何数量的空格符，头字段可以被扩展为多行，在每行开始处，使用至少一个空格或制表符。</p>
+<h5 id="请求方法（Method）"><a href="#请求方法（Method）" class="headerlink" title="请求方法（Method）"></a>请求方法（Method）</h5><p>HTTP/1.x 中定义了 8 中请求方法来以不同的方式操作指定的资源：OPTIONS/GET/HEAD/POST/PUT/DELETE/TRACE/CONNECT/PATCH，方法名称是区分大小写的，具体的定义请参考 <a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.1.1" target="_blank" rel="noopener">RFC 2616 Request Method</a>。当某个请求所针对的资源不支持对应的请求方法的时候，服务器应当返回状态码 405（Method Not Allowed），当服务器不认识或者不支持对应的请求方法的时候，应当返回状态码 501（Not Implemented）。</p>
+<p><strong> HTTP 服务器至少应该实现 GET 和 HEAD 方法，其他方法都是可选的。 </strong> GET 和 HEAD 方法，除了进行获取资源信息外，不具有其他意义，理论上是”安全的“（实际上其结果取决于服务器的实现）。<br><a id="more"></a></p>
+<h4 id="响应（Response）"><a href="#响应（Response）" class="headerlink" title="响应（Response）"></a>响应（Response）</h4><h5 id="响应消息（Response-Message）"><a href="#响应消息（Response-Message）" class="headerlink" title="响应消息（Response Message）"></a>响应消息（Response Message）</h5><p>服务器端接收处理了客户端请求后，向客户端回应一个响应消息，消息由下面 4 部分组成（<a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec6.html#sec6" target="_blank" rel="noopener">RFC 2616 Response</a>）：</p>
+<ol>
+<li>Status-Line，响应状态行，格式为：HTTP-Version SP Status-Code SP Reason-Phrase CRLF，eg. “HTTP/1.1 200 OK”。</li>
+<li>Response Header Fields，响应头， *(( general-header | response-header | entity-header ) CRLF)。</li>
+<li>空行，CRLF。</li>
+<li>消息体，[ message-body ]</li>
+</ol>
+<h5 id="状态码（Status-Code）"><a href="#状态码（Status-Code）" class="headerlink" title="状态码（Status Code）"></a>状态码（Status Code）</h5><p>HTTP 响应的第一行都是状态行（Status Line），依次是当前 HTTP 版本号，3 位数字组成的状态代码，以及描述状态的短语，彼此由空格分隔。</p>
+<p>状态代码的第一个数字代表当前响应的类型，目前有 5 种状态：</p>
+<ol>
+<li>1xx 消息——请求已被服务器接收，继续处理</li>
+<li>2xx 成功——请求已成功被服务器接收、理解、并接受</li>
+<li>3xx 重定向——需要后续操作才能完成这一请求</li>
+<li>4xx 请求错误——请求含有词法错误或者无法被执行</li>
+<li>5xx 服务器错误——服务器在处理某个正确请求时发生错误</li>
+</ol>
+<p>虽然 <a href="http://tools.ietf.org/html/rfc2616" target="_blank" rel="noopener">RFC 2616</a> 中已经推荐了描述状态的短语，例如”200 OK”，”404 Not Found”，但是 WEB 服务器开发者仍然能够自行决定采用何种短语，用以显示本地化的状态描述或者自定义信息。</p>
+<h4 id="Keep-Alive-持久连接"><a href="#Keep-Alive-持久连接" class="headerlink" title="Keep-Alive 持久连接"></a>Keep-Alive 持久连接</h4><p>持久连接是从 HTTP/1.1 开始引入的，对于 HTTP/1.0 可以通过在请求中增加请求头 <code>Connection: keep-alive</code> 来告诉服务器使用持久连接。而 HTTP/1.1 中持久连接是默认必须的，除非显示在请求时增加请求头 <code>Connection: close</code>。</p>
+<p>由于多个 HTTP 连接要复用同一个 TCP 连接，并且支持在应答到达前继续发送请求的 ”流线化“（stream） 方式。为了区分单个请求或者响应的边界， HTTP/1.1 引入实体头（entity-header） <code>Content-Length</code> 。<code>Content-Length</code> 指出 Meesage Body 的长度，通过这个头字段的值便可以准确判断请求或者响应的边界。</p>
+<p><code>Content-Length</code> 实体头的引入表明了在发送请求/响应前发送端必须提前知道整个消息数据的长度（称为 buffer 模式），对于客户端请求这不是问题，但是对于服务器在实际使用中有时候就不会那么容易获取数据长度了。例如，数据来自文件或者动态生成，要知道数据长度就得在内存中开足够大的 buffer，等内容全部生成好再计算。这样很显然会增加开销和延迟。为了解决这个问题， HTTP/1.1 引入了 <a href="http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.6" target="_blank" rel="noopener">分块传输编码</a>，增加了一个通用头(general-header) <code>Transfer-Encoding:chunked</code> 来支持启用这个功能。</p>
+<h5 id="分块传输编码（Transfer-Encoding-chunked）"><a href="#分块传输编码（Transfer-Encoding-chunked）" class="headerlink" title="分块传输编码（Transfer-Encoding:chunked）"></a>分块传输编码（Transfer-Encoding:chunked）</h5><p>分块传输编码允许服务器不需要预先知道发送数据的大小，而把数据分解成一系列数据块，并以一次一个或者多个块发送。<strong>通常数据块的大小是一致的，但也不总是这种情况</strong> **。</p>
+<p>一个 HTTP 消息（请求消息或应答消息）的 Transfer-Encoding 消息头的值为 chunked，那么，消息体由数量未定的块组成，并以最后一个大小为  0的块为结束。</p>
+<ol>
+<li>每一个非空的块都以该块包含数据的字节数（十六进制表示）开始，跟随一个 CRLF，然后是数据本身，最后跟 CRLF 结束。在一些实现中，块大小和 CRLF 之间填充有白空格（0x20）。</li>
+<li>最后一块由块大小（0），一些可选的填充白空格，以及 CRLF。最后一块不包含任何数据，但是可以发送包含消息头字段的可选尾部，最后以 CRLF 结尾。</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line">*******************************************************</span><br><span class="line"> HTTP/1.1 200 OK</span><br><span class="line"> Content-Type: text/plain</span><br><span class="line"> Transfer-Encoding: chunked</span><br><span class="line"> (空行)</span><br><span class="line"> 25</span><br><span class="line"> This is the data in the first chunk</span><br><span class="line"> 1C</span><br><span class="line"> and this is the second one</span><br><span class="line"> 3</span><br><span class="line"> con</span><br><span class="line"> 8</span><br><span class="line"> sequence</span><br><span class="line"> 0</span><br><span class="line"> (空行)</span><br><span class="line">********************************************************</span><br></pre></td></tr></table></figure>
+<p>HTTP 1.1引入分块传输编码提供了以下几点好处：</p>
+<ol>
+<li><p>HTTP 分块传输编码允许服务器为动态生成的内容维持 HTTP 持久链接。通常，持久链接需要服务器在开始发送消息体前发送 Content-Length 消息头字段，但是对于动态生成的内容来说，在内容创建完之前是不可知的。</p>
+</li>
+<li><p>分块传输编码允许服务器在最后发送消息头字段。对于那些头字段值在内容被生成之前无法知道的情形非常重要，例如消息的内容要使用散列进行签名，散列的结果通过 HTTP 消息头字段进行传输。没有分块传输编码时，服务器必须缓冲内容直到完成后计算头字段的值并在发送内容前发送这些头字段的值。</p>
+</li>
+<li><p>HTTP 服务器有时使用压缩 （gzip 或 deflate）以缩短传输花费的时间。分块传输编码可以用来分隔压缩对象的多个部分。在这种情况下，块不是分别压缩的，而是整个负载进行压缩，压缩的输出使用本文描述的方案进行分块传输。在压缩的情形中，分块编码有利于一边进行压缩一边发送数据，而不是先完成压缩过程以得知压缩后数据的大小。</p>
+</li>
+</ol>
+<p>参考文档:<br><a href="https://zh.wikipedia.org/wiki/%E5%88%86%E5%9D%97%E4%BC%A0%E8%BE%93%E7%BC%96%E7%A0%81" target="_blank" rel="noopener">分块传输编码</a></p>
+<h4 id="HTTP-消息压缩"><a href="#HTTP-消息压缩" class="headerlink" title="HTTP 消息压缩"></a>HTTP 消息压缩</h4><p><strong><em> HTTP 支持对消息体进行压缩传输（不支持对 HTTP 头部进行压缩） </em></strong>，以减少网络传输的数据量增加传输效率。这是通过 HTTP 内容编码头字段来支持的，实际上 HTTP 消息压缩在协议上是 HTTP 内容编码的一种。</p>
+<p>对于客户端，请求时通过发送请求头 <code>Accept-Encoding</code> 来向服务器表明客户端是否支持压缩，以及支持的压缩格式。例如， ”Accept-Encoding: gzip, deflate, sdch“  表明客户端支持 gzip, deflate, sdch 压缩格式。</p>
+<p>对于服务器端，响应时通过发送响应头 <code>Content-Encoding</code> 来向客户端说明响应数据是否压缩，以及压缩的格式。例如，”Content-Encoding:gzip“ 表示使用的是 gzip 压缩格式。如果没有 ”Content-Encoding“ 头或者 ”Content-Encoding:identity“ 则表明消息没有被编码，也就没有被压缩。</p>
+<p>很显然，服务端响应消息使用的编码方式（压缩格式）必须是客户端所能支持的（由请求的 <code>Accept-Encoding</code>  值来声明）。</p>
+<p><strong> 注：</strong>常见的压缩的方式 gzip, deflate 的关系。<strong>在 HTTP 内容编码中，deflate 表示的是 zlib。gzip 和 zlib 是两种不同的封装格式，其数据压缩都是使用的 deflate 算法，只是数据封装时使用的头部和尾部不同（头部和尾部主要是为了保存文件属性和校验信息）。所以通用的开源压缩库 ”zlib“ 同时支持 gzip，zlib 格式。</strong></p>
+<h3 id="HTTP1Connection"><a href="#HTTP1Connection" class="headerlink" title="HTTP1Connection"></a>HTTP1Connection</h3><p><code>read_response</code> 方法是 HTTP 消息解析的入口，从方法名称看这个方法仅仅针对响应，由前面 HTTP/1.x 请求和响应数据格式可以看到二者的数据格式上是一致的，所以 <code>read_response</code> 实现上同时支持对请求和响应的数据解析。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_response</span><span class="params">(self, delegate)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self.params.decompress:</span><br><span class="line">        delegate = _GzipMessageDelegate(delegate, self.params.chunk_size)</span><br><span class="line">    <span class="keyword">return</span> self._read_message(delegate)</span><br></pre></td></tr></table></figure>
+<p><code>delegate</code> 是一个 <code>HTTPMessageDelegate</code> 类型，如果支持 HTTP gzip 压缩则需要被 <code>_GzipMessageDelegate</code> 再次包装一下。 <code>_GzipMessageDelegate</code> 类型之前已经有介绍，其实现内部负责解压的是 <code>GzipDecompressor</code> 和 <code>zlib</code> 模块。python 的 <code>zlib</code> 模块同时支持 <code>gzip</code> 和 <code>zlib</code>，但其 API 有些隐晦，针对 <code>gzip</code> 需要这样初始化 <code>decompressor</code> 实例（<a href="http://stackoverflow.com/questions/1838699/how-can-i-decompress-a-gzip-stream-with-zlib" target="_blank" rel="noopener">how-can-i-decompress-a-gzip-stream-with-zlib</a>）: <code>zlib.decompressobj(16 + zlib.MAX_WBITS)</code>。</p>
+<p>HTTP 消息解析的逻辑都被封装在 <code>_read_message</code> 中。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br><span class="line">110</span><br><span class="line">111</span><br><span class="line">112</span><br><span class="line">113</span><br><span class="line">114</span><br><span class="line">115</span><br><span class="line">116</span><br><span class="line">117</span><br><span class="line">118</span><br><span class="line">119</span><br><span class="line">120</span><br><span class="line">121</span><br><span class="line">122</span><br><span class="line">123</span><br><span class="line">124</span><br><span class="line">125</span><br><span class="line">126</span><br><span class="line">127</span><br><span class="line">128</span><br><span class="line">129</span><br><span class="line">130</span><br><span class="line">131</span><br><span class="line">132</span><br><span class="line">133</span><br><span class="line">134</span><br><span class="line">135</span><br><span class="line">136</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@gen.coroutine</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_read_message</span><span class="params">(self, delegate)</span>:</span></span><br><span class="line">    need_delegate_close = <span class="literal">False</span></span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="comment"># 消息头与消息体之间由一个空行分开</span></span><br><span class="line">        header_future = self.stream.read_until_regex(</span><br><span class="line">            <span class="string">b"\r?\n\r?\n"</span>,</span><br><span class="line">            max_bytes=self.params.max_header_size)</span><br><span class="line">        <span class="keyword">if</span> self.params.header_timeout <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            header_data = <span class="keyword">yield</span> header_future</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                header_data = <span class="keyword">yield</span> gen.with_timeout(</span><br><span class="line">                    self.stream.io_loop.time() + self.params.header_timeout,</span><br><span class="line">                    header_future,</span><br><span class="line">                    io_loop=self.stream.io_loop)</span><br><span class="line">            <span class="keyword">except</span> gen.TimeoutError:</span><br><span class="line">                self.close()</span><br><span class="line">                <span class="keyword">raise</span> gen.Return(<span class="literal">False</span>)</span><br><span class="line">        <span class="comment"># 解析消息头，分离头字段和首行（request-line/status-line）</span></span><br><span class="line">        start_line, headers = self._parse_headers(header_data)</span><br><span class="line">        <span class="comment"># 作为 client 解析的是 server 的 response，作为 server 解析的是 client 的 request。</span></span><br><span class="line">        <span class="comment"># response 与 request 的 start_line(status-line/request-line) 的字段内容不同：</span></span><br><span class="line">        <span class="comment"># 1. response's status-line: HTTP-Version SP Status-Code SP Reason-Phrase CRLF</span></span><br><span class="line">        <span class="comment"># 2. request's request-line：Method SP Request-URI SP HTTP-Version CRLF</span></span><br><span class="line">        <span class="comment"># start_line 的值是一个 namedtuple。</span></span><br><span class="line">        <span class="keyword">if</span> self.is_client:</span><br><span class="line">            start_line = httputil.parse_response_start_line(start_line)</span><br><span class="line">            self._response_start_line = start_line</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            start_line = httputil.parse_request_start_line(start_line)</span><br><span class="line">            self._request_start_line = start_line</span><br><span class="line">            self._request_headers = headers</span><br><span class="line"></span><br><span class="line">        <span class="comment"># 非 keep-alive 的请求或响应处理完成后要关闭连接。</span></span><br><span class="line">        self._disconnect_on_finish = <span class="keyword">not</span> self._can_keep_alive(</span><br><span class="line">            start_line, headers)</span><br><span class="line">        need_delegate_close = <span class="literal">True</span></span><br><span class="line">        <span class="keyword">with</span> _ExceptionLoggingContext(app_log):</span><br><span class="line">            header_future = delegate.headers_received(start_line, headers)</span><br><span class="line">            <span class="keyword">if</span> header_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">                <span class="comment"># 如果 header_future 是一个 `Future` 实例，则要等到完成才读取 body。</span></span><br><span class="line">                <span class="keyword">yield</span> header_future</span><br><span class="line">        <span class="comment"># websocket ？？？</span></span><br><span class="line">        <span class="keyword">if</span> self.stream <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="comment"># We've been detached.</span></span><br><span class="line">            need_delegate_close = <span class="literal">False</span></span><br><span class="line">            <span class="keyword">raise</span> gen.Return(<span class="literal">False</span>)</span><br><span class="line">        skip_body = <span class="literal">False</span></span><br><span class="line">        <span class="keyword">if</span> self.is_client:</span><br><span class="line">            <span class="comment"># 作为 client 如果发起的是 HEAD 请求，那么 server response 应该无消息体</span></span><br><span class="line">            <span class="keyword">if</span> (self._request_start_line <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">                    self._request_start_line.method == <span class="string">'HEAD'</span>):</span><br><span class="line">                skip_body = <span class="literal">True</span></span><br><span class="line">            code = start_line.code</span><br><span class="line">            <span class="keyword">if</span> code == <span class="number">304</span>:</span><br><span class="line">                <span class="comment"># 304 responses may include the content-length header</span></span><br><span class="line">                <span class="comment"># but do not actually have a body.</span></span><br><span class="line">                <span class="comment"># http://tools.ietf.org/html/rfc7230#section-3.3</span></span><br><span class="line">                skip_body = <span class="literal">True</span></span><br><span class="line">            <span class="keyword">if</span> code &gt;= <span class="number">100</span> <span class="keyword">and</span> code &lt; <span class="number">200</span>:</span><br><span class="line">                <span class="comment"># 1xx responses should never indicate the presence of</span></span><br><span class="line">                <span class="comment"># a body.</span></span><br><span class="line">                <span class="keyword">if</span> (<span class="string">'Content-Length'</span> <span class="keyword">in</span> headers <span class="keyword">or</span></span><br><span class="line">                    <span class="string">'Transfer-Encoding'</span> <span class="keyword">in</span> headers):</span><br><span class="line">                    <span class="keyword">raise</span> httputil.HTTPInputError(</span><br><span class="line">                        <span class="string">"Response code %d cannot have body"</span> % code)</span><br><span class="line">                <span class="comment"># <span class="doctag">TODO:</span> client delegates will get headers_received twice</span></span><br><span class="line">                <span class="comment"># in the case of a 100-continue.  Document or change?</span></span><br><span class="line">                <span class="keyword">yield</span> self._read_message(delegate)</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            <span class="comment"># 100-continue 这个状态码是在 HTTP/1.1 中为了提高传输效率而设置的。当</span></span><br><span class="line">            <span class="comment"># client 需要 POST 较大数据给 WebServer 时，可以在发送 HTTP 请求时带上</span></span><br><span class="line">            <span class="comment"># Expect: 100-continue，WebServer 如果接受这个请求则应答一个</span></span><br><span class="line">            <span class="comment"># ``HTTP/1.1 100 (Continue)``，那么 client 就继续传输 request body，</span></span><br><span class="line">            <span class="comment"># 否则应答 ``HTTP/1.1 417 Expectation Failed`` client 就放弃传输剩余</span></span><br><span class="line">            <span class="comment"># 的数据。（注：Expect 头部域，用于指出客户端要求的特殊服务器行为采用扩展语法</span></span><br><span class="line">            <span class="comment"># 定义，以方便扩展。）</span></span><br><span class="line">            <span class="keyword">if</span> (headers.get(<span class="string">"Expect"</span>) == <span class="string">"100-continue"</span> <span class="keyword">and</span></span><br><span class="line">                    <span class="keyword">not</span> self._write_finished):</span><br><span class="line">                self.stream.write(<span class="string">b"HTTP/1.1 100 (Continue)\r\n\r\n"</span>)</span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> skip_body:</span><br><span class="line">            body_future = self._read_body(</span><br><span class="line">                start_line.code <span class="keyword">if</span> self.is_client <span class="keyword">else</span> <span class="number">0</span>, headers, delegate)</span><br><span class="line">            <span class="keyword">if</span> body_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">                <span class="keyword">if</span> self._body_timeout <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">                    <span class="keyword">yield</span> body_future</span><br><span class="line">                <span class="keyword">else</span>:</span><br><span class="line">                    <span class="keyword">try</span>:</span><br><span class="line">                        <span class="keyword">yield</span> gen.with_timeout(</span><br><span class="line">                            self.stream.io_loop.time() + self._body_timeout,</span><br><span class="line">                            body_future, self.stream.io_loop)</span><br><span class="line">                    <span class="keyword">except</span> gen.TimeoutError:</span><br><span class="line">                        gen_log.info(<span class="string">"Timeout reading body from %s"</span>,</span><br><span class="line">                                     self.context)</span><br><span class="line">                        self.stream.close()</span><br><span class="line">                        <span class="keyword">raise</span> gen.Return(<span class="literal">False</span>)</span><br><span class="line">        self._read_finished = <span class="literal">True</span></span><br><span class="line">        <span class="comment"># 对 client mode ，response 解析完成就调用 HTTPMessageDelegate.finish() 方法是合适的；</span></span><br><span class="line">        <span class="comment"># 对 server mode ，_write_finished 表示 response 是否发送完成，未完成前调用</span></span><br><span class="line">        <span class="comment"># HTTPMessageDelegate.finish() 方法是合适的；</span></span><br><span class="line">        <span class="keyword">if</span> <span class="keyword">not</span> self._write_finished <span class="keyword">or</span> self.is_client:</span><br><span class="line">            need_delegate_close = <span class="literal">False</span></span><br><span class="line">            <span class="keyword">with</span> _ExceptionLoggingContext(app_log):</span><br><span class="line">                delegate.finish()</span><br><span class="line">        <span class="comment"># If we're waiting for the application to produce an asynchronous</span></span><br><span class="line">        <span class="comment"># response, and we're not detached, register a close callback</span></span><br><span class="line">        <span class="comment"># on the stream (we didn't need one while we were reading)</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># <span class="doctag">NOTE:</span>_finish_future resolves when all data has been written and flushed</span></span><br><span class="line">        <span class="comment"># to the IOStream.</span></span><br><span class="line">        <span class="comment"># 等待异步响应完成，所有数据都写入 fd，才继续后续处理，详细见 _finish_request/finish 方法实现。</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="keyword">not</span> self._finish_future.done() <span class="keyword">and</span></span><br><span class="line">                self.stream <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">                <span class="keyword">not</span> self.stream.closed()):</span><br><span class="line">            self.stream.set_close_callback(self._on_connection_close)</span><br><span class="line">            <span class="keyword">yield</span> self._finish_future</span><br><span class="line">        <span class="comment"># 对于 client mode，处理完响应后如果不是 keep-alive 就断开连接。</span></span><br><span class="line">        <span class="comment"># 对于 server mode，需要在 response 完成后才断开连接，详细见 _finish_request/finish 方法实现。</span></span><br><span class="line">        <span class="keyword">if</span> self.is_client <span class="keyword">and</span> self._disconnect_on_finish:</span><br><span class="line">            self.close()</span><br><span class="line">        <span class="keyword">if</span> self.stream <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">raise</span> gen.Return(<span class="literal">False</span>)</span><br><span class="line">    <span class="keyword">except</span> httputil.HTTPInputError <span class="keyword">as</span> e:</span><br><span class="line">        gen_log.info(<span class="string">"Malformed HTTP message from %s: %s"</span>,</span><br><span class="line">                     self.context, e)</span><br><span class="line">        self.close()</span><br><span class="line">        <span class="keyword">raise</span> gen.Return(<span class="literal">False</span>)</span><br><span class="line">    <span class="keyword">finally</span>:</span><br><span class="line">        <span class="comment"># 连接 “关闭” 前还没能结束处理请求（call HTTPMessageDelegate.finish()），则</span></span><br><span class="line">        <span class="comment"># call  HTTPMessageDelegate.on_connection_close()</span></span><br><span class="line">        <span class="keyword">if</span> need_delegate_close:</span><br><span class="line">            <span class="keyword">with</span> _ExceptionLoggingContext(app_log):</span><br><span class="line">                delegate.on_connection_close()</span><br><span class="line">        self._clear_callbacks()</span><br><span class="line">    <span class="keyword">raise</span> gen.Return(<span class="literal">True</span>)</span><br></pre></td></tr></table></figure>
+<p><code>_read_body</code> 方法负责负责读取 HTTP 消息的消息体，按照前面 HTTP 协议的定义，消息体的读取要分成 3 中情况：</p>
+<ol>
+<li><p>非持久连接方式，消息体的读取以连接关闭作为界限；</p>
+</li>
+<li><p>持久连接方式下，通过 <code>Content-Length</code> 指定消息体的长度；</p>
+</li>
+<li><p>持久连接下采用 <code>Transfer-Encoding:chunked</code> 分块传输消息体。</p>
+</li>
+</ol>
+<p>上述 3 种情况对消息体的读取分别封装在方法 <code>language_read_body_until_close</code>、<code>_read_fixed_body</code>、<code>_read_chunked_body</code> 中。如下代码所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_read_body</span><span class="params">(self, code, headers, delegate)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> <span class="string">"Content-Length"</span> <span class="keyword">in</span> headers:</span><br><span class="line">        <span class="keyword">if</span> <span class="string">","</span> <span class="keyword">in</span> headers[<span class="string">"Content-Length"</span>]:</span><br><span class="line">            <span class="comment"># Proxies sometimes cause Content-Length headers to get</span></span><br><span class="line">            <span class="comment"># duplicated.  If all the values are identical then we can</span></span><br><span class="line">            <span class="comment"># use them but if they differ it's an error.</span></span><br><span class="line">            pieces = re.split(<span class="string">r',\s*'</span>, headers[<span class="string">"Content-Length"</span>])</span><br><span class="line">            <span class="keyword">if</span> any(i != pieces[<span class="number">0</span>] <span class="keyword">for</span> i <span class="keyword">in</span> pieces):</span><br><span class="line">                <span class="keyword">raise</span> httputil.HTTPInputError(</span><br><span class="line">                    <span class="string">"Multiple unequal Content-Lengths: %r"</span> %</span><br><span class="line">                    headers[<span class="string">"Content-Length"</span>])</span><br><span class="line">            headers[<span class="string">"Content-Length"</span>] = pieces[<span class="number">0</span>]</span><br><span class="line">        content_length = int(headers[<span class="string">"Content-Length"</span>])</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> content_length &gt; self._max_body_size:</span><br><span class="line">            <span class="keyword">raise</span> httputil.HTTPInputError(<span class="string">"Content-Length too long"</span>)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        content_length = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 204 No Content，表示服务器已经完成了请求，但是返回的信息不包括 message-body，但是可以通过</span></span><br><span class="line">    <span class="comment"># header fields 返回一些用于更新的元数据。</span></span><br><span class="line">    <span class="keyword">if</span> code == <span class="number">204</span>:</span><br><span class="line">        <span class="comment"># This response code is not allowed to have a non-empty body,</span></span><br><span class="line">        <span class="comment"># and has an implicit length of zero instead of read-until-close.</span></span><br><span class="line">        <span class="comment"># http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.3</span></span><br><span class="line">        <span class="keyword">if</span> (<span class="string">"Transfer-Encoding"</span> <span class="keyword">in</span> headers <span class="keyword">or</span></span><br><span class="line">                content_length <span class="keyword">not</span> <span class="keyword">in</span> (<span class="literal">None</span>, <span class="number">0</span>)):</span><br><span class="line">            <span class="keyword">raise</span> httputil.HTTPInputError(</span><br><span class="line">                <span class="string">"Response with code %d should not have body"</span> % code)</span><br><span class="line">        content_length = <span class="number">0</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 持久连接： Content-Length or Transfer-Encoding</span></span><br><span class="line">    <span class="keyword">if</span> content_length <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="keyword">return</span> self._read_fixed_body(content_length, delegate)</span><br><span class="line">    <span class="keyword">if</span> headers.get(<span class="string">"Transfer-Encoding"</span>) == <span class="string">"chunked"</span>:</span><br><span class="line">        <span class="keyword">return</span> self._read_chunked_body(delegate)</span><br><span class="line">    <span class="comment"># 非持久连接</span></span><br><span class="line">    <span class="keyword">if</span> self.is_client:</span><br><span class="line">        <span class="keyword">return</span> self._read_body_until_close(delegate)</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">None</span></span><br></pre></td></tr></table></figure>
+<p>代码中对于特殊情况的下 <code>Content-Length</code> 进行了一些额外的处理：</p>
+<ol>
+<li><p>由于一些代理可能会导致 <code>Content-Length</code> 的值重复，需要判断这些值是否一致，不一致的情况要作为错误处理；</p>
+</li>
+<li><p>HTTP Status Code 是 204 的时候，消息不应该含有消息体，所以不能出现 <code>Transfer-Encoding</code> 头字段。</p>
+</li>
+</ol>
+<p><code>language_read_body_until_close</code> 和 <code>_read_fixed_body</code> 方法实现都很简单，委托 stream 相关方法就好了。<code>_read_chunked_body</code> 方法需要按照前述的 <code>Transfer-Encoding:chuncked</code> 消息组成格式进行解析，相对复杂一点点，下面是其代码：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@gen.coroutine</span></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_read_chunked_body</span><span class="params">(self, delegate)</span>:</span></span><br><span class="line">    <span class="comment"># <span class="doctag">TODO:</span> "chunk extensions" http://tools.ietf.org/html/rfc2616#section-3.6.1</span></span><br><span class="line">    <span class="comment">#</span></span><br><span class="line">    <span class="comment"># *************************** chunk extensions *************************</span></span><br><span class="line">    <span class="comment"># 使用分块传输编码（chunked transfer encoding）时，消息体由数量未定的块组成，并以最</span></span><br><span class="line">    <span class="comment"># 后一个大小为 0 的块结束。</span></span><br><span class="line">    <span class="comment"># 1. 每一个非空的块都以该块包含数据的字节数（十六进制表示）开始，跟随一个 CRLF，然后是数</span></span><br><span class="line">    <span class="comment"># 据本身，最后跟 CRLF 结束。在一些实现中，块大小和 CRLF 之间填充有白空格（0x20）。</span></span><br><span class="line">    <span class="comment"># 2. 最后一块由块大小（0），一些可选的填充白空格，以及 CRLF。最后一块不包含任何数据，但</span></span><br><span class="line">    <span class="comment"># 是可以发送包含消息头字段的可选尾部（注：以下代码实现不支持可选尾部），最后以 CRLF 结尾。</span></span><br><span class="line">    <span class="comment"># ----------------------------eg. start--------------------------------</span></span><br><span class="line">    <span class="comment"># HTTP/1.1 200 OK\r\n</span></span><br><span class="line">    <span class="comment"># Content-Type: text/plain\r\n</span></span><br><span class="line">    <span class="comment"># Transfer-Encoding: chunked\r\n</span></span><br><span class="line">    <span class="comment"># \r\n</span></span><br><span class="line">    <span class="comment"># 25\r\n</span></span><br><span class="line">    <span class="comment"># This is the data in the first chunk\r\n</span></span><br><span class="line">    <span class="comment"># 1C\r\n</span></span><br><span class="line">    <span class="comment"># and this is the second one\r\n</span></span><br><span class="line">    <span class="comment"># 3\r\n</span></span><br><span class="line">    <span class="comment"># con\r\n</span></span><br><span class="line">    <span class="comment"># 8\r\n</span></span><br><span class="line">    <span class="comment"># sequence\r\n</span></span><br><span class="line">    <span class="comment"># 0\r\n</span></span><br><span class="line">    <span class="comment"># \r\n</span></span><br><span class="line">    <span class="comment"># ----------------------------eg. end--------------------------------</span></span><br><span class="line">    <span class="comment"># **********************************************************************</span></span><br><span class="line">    total_size = <span class="number">0</span></span><br><span class="line">    <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">        chunk_len = <span class="keyword">yield</span> self.stream.read_until(<span class="string">b"\r\n"</span>, max_bytes=<span class="number">64</span>)</span><br><span class="line">        chunk_len = int(chunk_len.strip(), <span class="number">16</span>)</span><br><span class="line">        <span class="keyword">if</span> chunk_len == <span class="number">0</span>:</span><br><span class="line">            <span class="keyword">return</span></span><br><span class="line">        total_size += chunk_len</span><br><span class="line">        <span class="keyword">if</span> total_size &gt; self._max_body_size:</span><br><span class="line">            <span class="keyword">raise</span> httputil.HTTPInputError(<span class="string">"chunked body too large"</span>)</span><br><span class="line">        bytes_to_read = chunk_len</span><br><span class="line">        <span class="keyword">while</span> bytes_to_read:</span><br><span class="line">            chunk = <span class="keyword">yield</span> self.stream.read_bytes(</span><br><span class="line">                min(bytes_to_read, self.params.chunk_size), partial=<span class="literal">True</span>)</span><br><span class="line">            bytes_to_read -= len(chunk)</span><br><span class="line">            <span class="keyword">if</span> <span class="keyword">not</span> self._write_finished <span class="keyword">or</span> self.is_client:</span><br><span class="line">                <span class="keyword">with</span> _ExceptionLoggingContext(app_log):</span><br><span class="line">                    <span class="keyword">yield</span> gen.maybe_future(delegate.data_received(chunk))</span><br><span class="line">        <span class="comment"># chunk ends with \r\n</span></span><br><span class="line">        crlf = <span class="keyword">yield</span> self.stream.read_bytes(<span class="number">2</span>)</span><br><span class="line">        <span class="comment"># 如果最后一个 chunk 中包含了可选的尾部，断言会失败。可选尾部由 Trailer 头域支持，</span></span><br><span class="line">        <span class="comment"># 参考：http://tools.ietf.org/html/rfc2616#section-14.40。</span></span><br><span class="line">        <span class="comment"># 目前 tornado 中的实现不支持这个可选尾部，如果发生异常的话，可尝试判断是否是 last chunk，</span></span><br><span class="line">        <span class="comment"># 然后吞掉可选尾部。</span></span><br><span class="line">        <span class="comment"># eg.</span></span><br><span class="line">        <span class="comment"># if bytes_to_read == 0 and crlf != b"\r\n":</span></span><br><span class="line">        <span class="comment">#     yield self.stream.read_until(b"\r\n", max_bytes=self._max_body_size - total_size)</span></span><br><span class="line">        <span class="comment"># else:</span></span><br><span class="line">        <span class="comment">#     assert crlf == b"\r\n"</span></span><br><span class="line">        <span class="keyword">assert</span> crlf == <span class="string">b"\r\n"</span></span><br></pre></td></tr></table></figure>
+<p>代码中已经对相应的代码做了详细注释，值得注意的是这里方法并不是完整支持 RFC 中的分块传输编码，不支持最后一块数据中包含可选尾部。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/HTTP1Connection/" rel="tag"># HTTP1Connection</a>
+            
+              <a href="/tags/HTTP-1-x/" rel="tag"># HTTP/1.x</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/10/21/tornado.httpserver/" rel="next" title="tornado.httpserver 模块解析">
+                  <i class="fa fa-chevron-left"></i> tornado.httpserver 模块解析
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/12/10/ProcessPoolExecutor_In_Tornado/" rel="prev" title="ProcessPoolExecutor In Tornado">
+                  ProcessPoolExecutor In Tornado <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTP-1-x-简介"><span class="nav-number">2.</span> <span class="nav-text">HTTP/1.x 简介</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#版本"><span class="nav-number">2.1.</span> <span class="nav-text">版本</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#请求（Request）"><span class="nav-number">2.2.</span> <span class="nav-text">请求（Request）</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#请求消息（Request-Message）"><span class="nav-number">2.2.1.</span> <span class="nav-text">请求消息（Request Message）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#请求方法（Method）"><span class="nav-number">2.2.2.</span> <span class="nav-text">请求方法（Method）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#响应（Response）"><span class="nav-number">2.3.</span> <span class="nav-text">响应（Response）</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#响应消息（Response-Message）"><span class="nav-number">2.3.1.</span> <span class="nav-text">响应消息（Response Message）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#状态码（Status-Code）"><span class="nav-number">2.3.2.</span> <span class="nav-text">状态码（Status Code）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#Keep-Alive-持久连接"><span class="nav-number">2.4.</span> <span class="nav-text">Keep-Alive 持久连接</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#分块传输编码（Transfer-Encoding-chunked）"><span class="nav-number">2.4.1.</span> <span class="nav-text">分块传输编码（Transfer-Encoding:chunked）</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#HTTP-消息压缩"><span class="nav-number">2.5.</span> <span class="nav-text">HTTP 消息压缩</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#HTTP1Connection"><span class="nav-number">3.</span> <span class="nav-text">HTTP1Connection</span></a></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

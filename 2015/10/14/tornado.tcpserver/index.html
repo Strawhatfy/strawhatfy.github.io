@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="引言有了 tornado.ioloop 和 tornado.iostream 这两个模块的帮助，在 tornado 中要实现一个异步 Web 服务器就变得容易了。 tornado.httpserver 模块是 tornado 的 Web 服务器模块, 该模块中实现了 HTTPServer —— 一个单线程 HTTP 服务器，其实现是基于 tornado.tcpserver 模块的 TCPServe">
+<meta name="keywords" content="TCPServer,non-blocking,single-process,multi-process">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.tcpserver 模块解析">
+<meta property="og:url" content="http://yoursite.com/2015/10/14/tornado.tcpserver/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="引言有了 tornado.ioloop 和 tornado.iostream 这两个模块的帮助，在 tornado 中要实现一个异步 Web 服务器就变得容易了。 tornado.httpserver 模块是 tornado 的 Web 服务器模块, 该模块中实现了 HTTPServer —— 一个单线程 HTTP 服务器，其实现是基于 tornado.tcpserver 模块的 TCPServe">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.346Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.tcpserver 模块解析">
+<meta name="twitter:description" content="引言有了 tornado.ioloop 和 tornado.iostream 这两个模块的帮助，在 tornado 中要实现一个异步 Web 服务器就变得容易了。 tornado.httpserver 模块是 tornado 的 Web 服务器模块, 该模块中实现了 HTTPServer —— 一个单线程 HTTP 服务器，其实现是基于 tornado.tcpserver 模块的 TCPServe">
+  <link rel="canonical" href="http://yoursite.com/2015/10/14/tornado.tcpserver/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.tcpserver 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/10/14/tornado.tcpserver/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.tcpserver 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-10-14 17:25:01" itemprop="dateCreated datePublished" datetime="2015-10-14T17:25:01+08:00">2015-10-14</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="引言"><a href="#引言" class="headerlink" title="引言"></a>引言</h3><p>有了 <code>tornado.ioloop</code> 和 <code>tornado.iostream</code> 这两个模块的帮助，在 tornado 中要实现一个异步 Web 服务器就变得容易了。</p>
+<p><code>tornado.httpserver</code> 模块是 tornado 的 Web 服务器模块, 该模块中实现了 <code>HTTPServer</code> —— 一个单线程 HTTP 服务器，其实现是基于 <code>tornado.tcpserver</code> 模块的 <code>TCPServer</code>，<code>TCPServer</code> 是一个非阻塞单线程的 TCP 服务器，它负责处理 TCP 协议部分的内容，并预留接口（<code>handle_stream</code> 抽象方法）以便针对相应的应用层协议编写服务器。所以在分析 tornado HTTP 服务器实现之前，我们先来看看 <code>tornado.tcpserver.TCPServer</code> 的实现。</p>
+<h3 id="TCPServer"><a href="#TCPServer" class="headerlink" title="TCPServer"></a>TCPServer</h3><p><code>tornado.tcpserver</code> 模块中只定义了一个 <code>TCPServer</code> 类，由于其实现不涉及到具体的应用层协议（例如Http协议），加上有 <code>IOLoop</code> 和 <code>IOStream</code> 的支持，其实现比较简单。</p>
+<p><code>TCPServer</code> 是一个非阻塞的单线程 TCP Server，它提供了一个抽象接口方法 <code>handle_stream</code> 供具体的子类去实现，同时支持多进程的运行方式。按照源码注释，通过调用不同的方法我们有 3 中方式使用一个  TCP Server。</p>
+<h4 id="三种使用模式"><a href="#三种使用模式" class="headerlink" title="三种使用模式"></a>三种使用模式</h4><h5 id="使用-listen-的单进程模式"><a href="#使用-listen-的单进程模式" class="headerlink" title="使用 listen 的单进程模式"></a>使用 listen 的单进程模式</h5><p>通过 <code>TCPServer</code> 的 <code>listen</code> 方法以单进程的方式运行服务器实例。示例代码如下：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">server = TCPServer()</span><br><span class="line">server.listen(<span class="number">8888</span>)</span><br><span class="line">IOLoop.instance().start()</span><br></pre></td></tr></table></figure>
+<p><code>TCPServer</code> 提供的 <code>listen</code> 方法可以立即启动在指定的端口进行监听，并将相应的 socket 加入到 IOLoop 中。该方法可以多次调用，同时监听多个端口。由于需要 IOLoop 来驱动，所以必须确保相应的 IOLoop 实例已经启动（上述示例代码实例化 server 用的是默认 IOLoop 实例，所以通过 IOLoop.instance().start() 启动）。</p>
+<a id="more"></a>
+<h5 id="使用-bind-start-的多进程模式"><a href="#使用-bind-start-的多进程模式" class="headerlink" title="使用 bind/start 的多进程模式"></a>使用 bind/start 的多进程模式</h5><p>通过 <code>TCPServer</code> 的 <code>bind</code>/<code>start</code> 方法可以以多进程的方式运行服务器实例。示例代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">server = TCPServer()</span><br><span class="line">server.bind(<span class="number">8888</span>)</span><br><span class="line">server.start(<span class="number">0</span>)  <span class="comment"># Forks multiple sub-processes</span></span><br><span class="line">IOLoop.instance().start()</span><br></pre></td></tr></table></figure>
+<p><code>bind</code> 方法可以将服务器绑定到指定的地址，并通过 <code>start</code> 方法启动多个子进程，以达到多进程运行的模式。<code>start</code> 方法通过参数 <code>num_processes</code> 指定以单进程或者多进程方式运行服务器，<code>num_processes</code> 参数默认为 1，以单进程方式运行；当为 None 或者 &lt;= 0 时，将尝试使用与 cpu 核数相当的子进程运行（如上述示例代码所示）；当 &gt; 1，将以该值指定的子进程数运行。</p>
+<p>不过，如果是以单进程方式运行服务器的话，一般使用 <code>listen</code> 的方式。</p>
+<h5 id="更高级的多进程模式"><a href="#更高级的多进程模式" class="headerlink" title="更高级的多进程模式"></a>更高级的多进程模式</h5><p><code>TCPServer</code> 的 <code>bind</code>/<code>start</code> 方法内部实际封装的就是绑定监听端口和启动子进程的功能，我们可以不使用这两个方法，而是执行调用绑定函数和 fork 进程来达到多进程运行服务器实例的目的。示例代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line">sockets = bind_sockets(<span class="number">8888</span>)</span><br><span class="line">tornado.process.fork_processes(<span class="number">0</span>)</span><br><span class="line">server = TCPServer()</span><br><span class="line">server.add_sockets(sockets)</span><br><span class="line">IOLoop.instance().start()</span><br></pre></td></tr></table></figure>
+<p><code>bind_sockets</code> 函数定义在 <code>tornado.netutil</code> 模块中。<code>fork_processes</code> 函数定义在 <code>tornado.process</code> 模块中。</p>
+<p>通过调用 <code>bind_sockets</code> 函数可以创建一个或者多个(一个 hostname 可能绑定到多个 IP 地址)监听指定端口的 socket。调用 <code>fork_processes</code> 方法可以 fork 出多个子进程，<strong><em>其中主进程调用负责监听子进程的状态而不会返回，子进程接着执行后续代码</em></strong>。</p>
+<p>实际上 <code>TCPServer</code> 的 <code>bind</code>/<code>start</code> 方法内部也是调用的 <code>bind_sockets</code> 与 <code>fork_processes</code>  函数。</p>
+<h6 id="bind-sockets-函数"><a href="#bind-sockets-函数" class="headerlink" title="bind_sockets 函数"></a>bind_sockets 函数</h6><p><code>bind_sockets</code> 函数的代码不多，比较简单，作者的注释也非常的详细。函数同时支持 ipv6 和 ipv4 ，能够监听的连接数队列默认最大是 128（<code>_DEFAULT_BACKLOG=128</code>）。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">bind_sockets</span><span class="params">(port, address=None, family=socket.AF_UNSPEC,</span></span></span><br><span class="line"><span class="function"><span class="params">                 backlog=_DEFAULT_BACKLOG, flags=None)</span>:</span></span><br><span class="line">    <span class="string">"""Creates listening sockets bound to the given port and address.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Returns a list of socket objects (multiple sockets are returned if</span></span><br><span class="line"><span class="string">    the given address maps to multiple IP addresses, which is most common</span></span><br><span class="line"><span class="string">    for mixed IPv4 and IPv6 use).</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Address may be either an IP address or hostname.  If it's a hostname,</span></span><br><span class="line"><span class="string">    the server will listen on all IP addresses associated with the</span></span><br><span class="line"><span class="string">    name.  Address may be an empty string or None to listen on all</span></span><br><span class="line"><span class="string">    available interfaces.  Family may be set to either `socket.AF_INET`</span></span><br><span class="line"><span class="string">    or `socket.AF_INET6` to restrict to IPv4 or IPv6 addresses, otherwise</span></span><br><span class="line"><span class="string">    both will be used if available.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The ``backlog`` argument has the same meaning as for</span></span><br><span class="line"><span class="string">    `socket.listen() &lt;socket.socket.listen&gt;`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    ``flags`` is a bitmask of AI_* flags to `~socket.getaddrinfo`, like</span></span><br><span class="line"><span class="string">    ``socket.AI_PASSIVE | socket.AI_NUMERICHOST``.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    sockets = []</span><br><span class="line">    <span class="keyword">if</span> address == <span class="string">""</span>:</span><br><span class="line">        address = <span class="literal">None</span></span><br><span class="line">    <span class="keyword">if</span> <span class="keyword">not</span> socket.has_ipv6 <span class="keyword">and</span> family == socket.AF_UNSPEC:</span><br><span class="line">        <span class="comment"># Python can be compiled with --disable-ipv6, which causes</span></span><br><span class="line">        <span class="comment"># operations on AF_INET6 sockets to fail, but does not</span></span><br><span class="line">        <span class="comment"># automatically exclude those results from getaddrinfo</span></span><br><span class="line">        <span class="comment"># results.</span></span><br><span class="line">        <span class="comment"># http://bugs.python.org/issue16208</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># 由于可以通过指定编译选项来编译出仅支持 ipv4 的 python 版本，为了保证</span></span><br><span class="line">        <span class="comment"># getaddrinfo 也只返回 ipv4 的地址，所以这里指定 socket.AF_INET</span></span><br><span class="line">        family = socket.AF_INET</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 函数注释中已经有说明了，flag 是一个传递给 getaddrinfo 函数的 AI_* 掩码。常用的如</span></span><br><span class="line">    <span class="comment"># ``socket.AI_PASSIVE | socket.AI_CANNONAME | socket.AI_NUMERICHOST``。</span></span><br><span class="line">    <span class="comment"># ``socket.AI_PASSIVE``: 指示函数返回的地址将用于 bind() 函数调用，否则用于 connect() 函数调用；</span></span><br><span class="line">    <span class="comment"># ``socket.AI_CANNONAME``: 指示函数返回的地址需要一个规范名(而不是别名)。</span></span><br><span class="line">    <span class="comment"># ``socket.AI_NUMERICHOST``: 指示函数返回数字格式的地址。</span></span><br><span class="line">    <span class="keyword">if</span> flags <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        flags = socket.AI_PASSIVE</span><br><span class="line">    bound_port = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># socket.getaddrinfo(host, port[, family[, socktype[, proto[, flags]]]])</span></span><br><span class="line">    <span class="comment"># family: 协议簇，常用的协议包括 AF_UNIX(1，本机通信)/AF_INET(2，IPV4)/AF_INET6(10，IPV6)。</span></span><br><span class="line">    <span class="comment"># socktype：socket 的类型，常见的socket类型包括SOCK_STREAM(TCP流)/SOCK_DGRAM(UDP数据报)/SOCK_RAW(原始套接字)。</span></span><br><span class="line">    <span class="comment">#           其中，SOCK_STREAM=1，SOCK_DGRAM=2，SOCK_RAW=3。</span></span><br><span class="line">    <span class="comment"># proto：协议，套接口所用的协议。如调用者不想指定，可用0。常用的协议有，IPPROTO_TCP(=6) 和</span></span><br><span class="line">    <span class="comment">#        IPPTOTO_UDP(=17)，它们分别对应 TCP 传输协议、UDP 传输协议。与 IP 数据包的 ``8位协议字段`` 对应。</span></span><br><span class="line">    <span class="keyword">for</span> res <span class="keyword">in</span> set(socket.getaddrinfo(address, port, family, socket.SOCK_STREAM,</span><br><span class="line">                                      <span class="number">0</span>, flags)):</span><br><span class="line">        af, socktype, proto, canonname, sockaddr = res</span><br><span class="line">        <span class="keyword">if</span> (platform.system() == <span class="string">'Darwin'</span> <span class="keyword">and</span> address == <span class="string">'localhost'</span> <span class="keyword">and</span></span><br><span class="line">                af == socket.AF_INET6 <span class="keyword">and</span> sockaddr[<span class="number">3</span>] != <span class="number">0</span>):</span><br><span class="line">            <span class="comment"># Mac OS X includes a link-local address fe80::1%lo0 in the</span></span><br><span class="line">            <span class="comment"># getaddrinfo results for 'localhost'.  However, the firewall</span></span><br><span class="line">            <span class="comment"># doesn't understand that this is a local address and will</span></span><br><span class="line">            <span class="comment"># prompt for access (often repeatedly, due to an apparent</span></span><br><span class="line">            <span class="comment"># bug in its ability to remember granting access to an</span></span><br><span class="line">            <span class="comment"># application). Skip these addresses.</span></span><br><span class="line">            <span class="comment">#</span></span><br><span class="line">            <span class="comment"># address = 'localhost' 时 Mac OS X 可能会返回一个 ipv6 地址 fe80::1%lo0，</span></span><br><span class="line">            <span class="comment"># 而防火墙不能识别出这是一个本地地址而尝试访问会导致 bug ，所以这里忽略这个地址。</span></span><br><span class="line">            <span class="comment"># ipv6  二进制 128 位，以 16 位为一组，每组以 `:` 分开，`::` 表示一组0或者多组连续的0，</span></span><br><span class="line">            <span class="comment"># 但是只能出现 1 次。</span></span><br><span class="line">            <span class="comment"># sockaddr is a tuple describing a socket address, whose format</span></span><br><span class="line">            <span class="comment"># depends on the returned family (a (address, port) 2-tuple for</span></span><br><span class="line">            <span class="comment"># AF_INET, a (address, port, flow info, scope id) 4-tuple for AF_INET6)</span></span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            sock = socket.socket(af, socktype, proto)</span><br><span class="line">        <span class="keyword">except</span> socket.error <span class="keyword">as</span> e:</span><br><span class="line">            <span class="keyword">if</span> errno_from_exception(e) == errno.EAFNOSUPPORT:</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            <span class="keyword">raise</span></span><br><span class="line">        <span class="comment"># 为 fd 设置 FD_CLOEXEC 标识</span></span><br><span class="line">        set_close_exec(sock.fileno())</span><br><span class="line">        <span class="keyword">if</span> os.name != <span class="string">'nt'</span>:</span><br><span class="line">            <span class="comment"># 避免在服务器重启的时候发生“该地址以被使用”这种错误。</span></span><br><span class="line">            <span class="comment"># socket.SOL_SOCKET 指定在套接字级别设置 `可选项`。</span></span><br><span class="line">            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, <span class="number">1</span>)</span><br><span class="line">        <span class="keyword">if</span> af == socket.AF_INET6:</span><br><span class="line">            <span class="comment"># On linux, ipv6 sockets accept ipv4 too by default,</span></span><br><span class="line">            <span class="comment"># but this makes it impossible to bind to both</span></span><br><span class="line">            <span class="comment"># 0.0.0.0 in ipv4 and :: in ipv6.  On other systems,</span></span><br><span class="line">            <span class="comment"># separate sockets *must* be used to listen for both ipv4</span></span><br><span class="line">            <span class="comment"># and ipv6.  For consistency, always disable ipv4 on our</span></span><br><span class="line">            <span class="comment"># ipv6 sockets and use a separate ipv4 socket when needed.</span></span><br><span class="line">            <span class="comment">#</span></span><br><span class="line">            <span class="comment"># Python 2.x on windows doesn't have IPPROTO_IPV6.</span></span><br><span class="line">            <span class="keyword">if</span> hasattr(socket, <span class="string">"IPPROTO_IPV6"</span>):</span><br><span class="line">                sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, <span class="number">1</span>)</span><br><span class="line"></span><br><span class="line">        <span class="comment"># automatic port allocation with port=None</span></span><br><span class="line">        <span class="comment"># should bind on the same port on IPv4 and IPv6</span></span><br><span class="line">        host, requested_port = sockaddr[:<span class="number">2</span>]</span><br><span class="line">        <span class="keyword">if</span> requested_port == <span class="number">0</span> <span class="keyword">and</span> bound_port <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            sockaddr = tuple([host, bound_port] + list(sockaddr[<span class="number">2</span>:]))</span><br><span class="line"></span><br><span class="line">        sock.setblocking(<span class="number">0</span>)</span><br><span class="line">        sock.bind(sockaddr)</span><br><span class="line">        bound_port = sock.getsockname()[<span class="number">1</span>]</span><br><span class="line">        sock.listen(backlog)</span><br><span class="line">        sockets.append(sock)</span><br><span class="line">    <span class="keyword">return</span> sockets</span><br></pre></td></tr></table></figure>
+<h6 id="fork-processes-函数"><a href="#fork-processes-函数" class="headerlink" title="fork_processes 函数"></a>fork_processes 函数</h6><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">fork_processes</span><span class="params">(num_processes, max_restarts=<span class="number">100</span>)</span>:</span></span><br><span class="line">    <span class="string">"""Starts multiple worker processes.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If ``num_processes`` is None or &lt;= 0, we detect the number of cores</span></span><br><span class="line"><span class="string">    available on this machine and fork that number of child</span></span><br><span class="line"><span class="string">    processes. If ``num_processes`` is given and &gt; 0, we fork that</span></span><br><span class="line"><span class="string">    specific number of sub-processes.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Since we use processes and not threads, there is no shared memory</span></span><br><span class="line"><span class="string">    between any server code.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Note that multiple processes are not compatible with the autoreload</span></span><br><span class="line"><span class="string">    module (or the ``autoreload=True`` option to `tornado.web.Application`</span></span><br><span class="line"><span class="string">    which defaults to True when ``debug=True``).</span></span><br><span class="line"><span class="string">    When using multiple processes, no IOLoops can be created or</span></span><br><span class="line"><span class="string">    referenced until after the call to ``fork_processes``.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    In each child process, ``fork_processes`` returns its *task id*, a</span></span><br><span class="line"><span class="string">    number between 0 and ``num_processes``.  Processes that exit</span></span><br><span class="line"><span class="string">    abnormally (due to a signal or non-zero exit status) are restarted</span></span><br><span class="line"><span class="string">    with the same id (up to ``max_restarts`` times).  In the parent</span></span><br><span class="line"><span class="string">    process, ``fork_processes`` returns None if all child processes</span></span><br><span class="line"><span class="string">    have exited normally, but will otherwise only exit by throwing an</span></span><br><span class="line"><span class="string">    exception.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">global</span> _task_id</span><br><span class="line">    <span class="keyword">assert</span> _task_id <span class="keyword">is</span> <span class="literal">None</span></span><br><span class="line">    <span class="comment"># num_processes 为 None 或者 &lt;=0,则使用 cpu 核数。</span></span><br><span class="line">    <span class="keyword">if</span> num_processes <span class="keyword">is</span> <span class="literal">None</span> <span class="keyword">or</span> num_processes &lt;= <span class="number">0</span>:</span><br><span class="line">        num_processes = cpu_count()</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> ioloop.IOLoop.initialized():</span><br><span class="line">        <span class="keyword">raise</span> RuntimeError(<span class="string">"Cannot run in multiple processes: IOLoop instance "</span></span><br><span class="line">                           <span class="string">"has already been initialized. You cannot call "</span></span><br><span class="line">                           <span class="string">"IOLoop.instance() before calling start_processes()"</span>)</span><br><span class="line">    gen_log.info(<span class="string">"Starting %d processes"</span>, num_processes)</span><br><span class="line">    children = &#123;&#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">start_child</span><span class="params">(i)</span>:</span></span><br><span class="line">        pid = os.fork()</span><br><span class="line">        <span class="keyword">if</span> pid == <span class="number">0</span>:</span><br><span class="line">            <span class="comment"># child process</span></span><br><span class="line">            _reseed_random()</span><br><span class="line">            <span class="keyword">global</span> _task_id</span><br><span class="line">            _task_id = i</span><br><span class="line">            <span class="keyword">return</span> i</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            children[pid] = i</span><br><span class="line">            <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line">    <span class="keyword">for</span> i <span class="keyword">in</span> range(num_processes):</span><br><span class="line">        id = start_child(i)</span><br><span class="line">        <span class="keyword">if</span> id <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">return</span> id</span><br><span class="line"></span><br><span class="line">    <span class="comment"># master 进程负责监控子进程，若子进程异常结束(due to a signal or non-zero exit status)，</span></span><br><span class="line">    <span class="comment"># 则负责重启子进程。`num_restarts` 变量记录了累计重启的子进程数量，若该值大于 `max_restarts`,</span></span><br><span class="line">    <span class="comment"># 则抛出运行时异常。</span></span><br><span class="line">    num_restarts = <span class="number">0</span></span><br><span class="line">    <span class="keyword">while</span> children:</span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            pid, status = os.wait()</span><br><span class="line">        <span class="keyword">except</span> OSError <span class="keyword">as</span> e:</span><br><span class="line">            <span class="keyword">if</span> errno_from_exception(e) == errno.EINTR:</span><br><span class="line">                <span class="keyword">continue</span></span><br><span class="line">            <span class="keyword">raise</span></span><br><span class="line">        <span class="keyword">if</span> pid <span class="keyword">not</span> <span class="keyword">in</span> children:</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        id = children.pop(pid)</span><br><span class="line">        <span class="keyword">if</span> os.WIFSIGNALED(status):</span><br><span class="line">            gen_log.warning(<span class="string">"child %d (pid %d) killed by signal %d, restarting"</span>,</span><br><span class="line">                            id, pid, os.WTERMSIG(status))</span><br><span class="line">        <span class="keyword">elif</span> os.WEXITSTATUS(status) != <span class="number">0</span>:</span><br><span class="line">            gen_log.warning(<span class="string">"child %d (pid %d) exited with status %d, restarting"</span>,</span><br><span class="line">                            id, pid, os.WEXITSTATUS(status))</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            gen_log.info(<span class="string">"child %d (pid %d) exited normally"</span>, id, pid)</span><br><span class="line">            <span class="keyword">continue</span></span><br><span class="line">        num_restarts += <span class="number">1</span></span><br><span class="line">        <span class="keyword">if</span> num_restarts &gt; max_restarts:</span><br><span class="line">            <span class="keyword">raise</span> RuntimeError(<span class="string">"Too many child restarts, giving up"</span>)</span><br><span class="line">        new_id = start_child(id)</span><br><span class="line">        <span class="keyword">if</span> new_id <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            <span class="keyword">return</span> new_id</span><br><span class="line">    <span class="comment"># All child processes exited cleanly, so exit the master process</span></span><br><span class="line">    <span class="comment"># instead of just returning to right after the call to</span></span><br><span class="line">    <span class="comment"># fork_processes (which will probably just start up another IOLoop</span></span><br><span class="line">    <span class="comment"># unless the caller checks the return value).</span></span><br><span class="line">    sys.exit(<span class="number">0</span>)TLS</span><br></pre></td></tr></table></figure>
+<p><code>TCPServer</code> 的实现代码比较简单，重要的设计在前述内容中基本上都提到了。至于涉及到 SSL/TLS 部分TLS的知识，就需要另外查询相关资料了，这方面我目前也不懂。但是这个不影响对 tornado 的学习。额外补充两点内容：</p>
+<ol>
+<li><p><code>TCPServer</code> 的构造函数中会对非 None 的 ssl_options 参数进行检查，要求必须包含 <strong>‘certfile’</strong> 和 <strong>‘keyfile’</strong> 选项并且选项指定的文件存在，但不会检查文件的内容。对文件内容的检查将推迟到客户端连接建立时。ssl_options 是一个 dictionary， 在 python 3.2+ 还可以用 <code>ssl.SSLContext</code> 实例来代替。</p>
+</li>
+<li><p>SSL Wrap 相关的函数被定义在 <code>tornado.netutil</code> 模块中，有效的 ssl_options 选项名称被定义在模块变量 <code>_SSL_CONTEXT_KEYWORDS</code> 中，包括 [‘ssl_version’, ‘certfile’, ‘keyfile’, ‘cert_reqs’, ‘ca_certs’, ‘ciphers’]。</p>
+</li>
+</ol>
+<h6 id="add-accept-handler-函数"><a href="#add-accept-handler-函数" class="headerlink" title="add_accept_handler 函数"></a>add_accept_handler 函数</h6><p><code>TCPServer.add_sockets</code> 方法内部使用 <code>tornado.netutil.add_accept_handler</code> 函数完成将监听 socket 注册到 IOLoop event handlers 中，当 accept 客户端连接时回调。<code>add_accept_handler</code> 函数源码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">add_accept_handler</span><span class="params">(sock, callback, io_loop=None)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> io_loop <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        io_loop = IOLoop.current()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">accept_handler</span><span class="params">(fd, events)</span>:</span></span><br><span class="line">        <span class="comment"># More connections may come in while we're handling callbacks;</span></span><br><span class="line">        <span class="comment"># to prevent starvation of other tasks we must limit the number</span></span><br><span class="line">        <span class="comment"># of connections we accept at a time.  Ideally we would accept</span></span><br><span class="line">        <span class="comment"># up to the number of connections that were waiting when we</span></span><br><span class="line">        <span class="comment"># entered this method, but this information is not available</span></span><br><span class="line">        <span class="comment"># (and rearranging this method to call accept() as many times</span></span><br><span class="line">        <span class="comment"># as possible before running any callbacks would have adverse</span></span><br><span class="line">        <span class="comment"># effects on load balancing in multiprocess configurations).</span></span><br><span class="line">        <span class="comment"># Instead, we use the (default) listen backlog as a rough</span></span><br><span class="line">        <span class="comment"># heuristic for the number of connections we can reasonably</span></span><br><span class="line">        <span class="comment"># accept at once.</span></span><br><span class="line">        <span class="keyword">for</span> i <span class="keyword">in</span> xrange(_DEFAULT_BACKLOG):</span><br><span class="line">            <span class="keyword">try</span>:</span><br><span class="line">                connection, address = sock.accept()</span><br><span class="line">            <span class="keyword">except</span> socket.error <span class="keyword">as</span> e:</span><br><span class="line">                <span class="comment"># _ERRNO_WOULDBLOCK indicate we have accepted every</span></span><br><span class="line">                <span class="comment"># connection that is available.</span></span><br><span class="line">                <span class="keyword">if</span> errno_from_exception(e) <span class="keyword">in</span> _ERRNO_WOULDBLOCK:</span><br><span class="line">                    <span class="keyword">return</span></span><br><span class="line">                <span class="comment"># ECONNABORTED indicates that there was a connection</span></span><br><span class="line">                <span class="comment"># but it was closed while still in the accept queue.</span></span><br><span class="line">                <span class="comment"># (observed on FreeBSD).</span></span><br><span class="line">                <span class="keyword">if</span> errno_from_exception(e) == errno.ECONNABORTED:</span><br><span class="line">                    <span class="keyword">continue</span></span><br><span class="line">                <span class="keyword">raise</span></span><br><span class="line">            callback(connection, address)</span><br><span class="line">    io_loop.add_handler(sock, accept_handler, IOLoop.READ)</span><br></pre></td></tr></table></figure>
+<p>如代码注释所描述，<code>accept_handler</code> 函数在一次迭代中最多处理的 <code>_DEFAULT_BACKLOG</code> 指定数量的连接，也就是限制每次处理的连接数，以避免饿死其他的异步任务，同时有利于多进程时的负载均衡。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/TCPServer/" rel="tag"># TCPServer</a>
+            
+              <a href="/tags/non-blocking/" rel="tag"># non-blocking</a>
+            
+              <a href="/tags/single-process/" rel="tag"># single-process</a>
+            
+              <a href="/tags/multi-process/" rel="tag"># multi-process</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/10/12/tornado.util.Configurable/" rel="next" title="tornado.util.Configurable">
+                  <i class="fa fa-chevron-left"></i> tornado.util.Configurable
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/10/21/tornado.httpserver/" rel="prev" title="tornado.httpserver 模块解析">
+                  tornado.httpserver 模块解析 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#引言"><span class="nav-number">1.</span> <span class="nav-text">引言</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#TCPServer"><span class="nav-number">2.</span> <span class="nav-text">TCPServer</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#三种使用模式"><span class="nav-number">2.1.</span> <span class="nav-text">三种使用模式</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#使用-listen-的单进程模式"><span class="nav-number">2.1.1.</span> <span class="nav-text">使用 listen 的单进程模式</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#使用-bind-start-的多进程模式"><span class="nav-number">2.1.2.</span> <span class="nav-text">使用 bind/start 的多进程模式</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#更高级的多进程模式"><span class="nav-number">2.1.3.</span> <span class="nav-text">更高级的多进程模式</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#bind-sockets-函数"><span class="nav-number">2.1.3.1.</span> <span class="nav-text">bind_sockets 函数</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#fork-processes-函数"><span class="nav-number">2.1.3.2.</span> <span class="nav-text">fork_processes 函数</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#add-accept-handler-函数"><span class="nav-number">2.1.3.3.</span> <span class="nav-text">add_accept_handler 函数</span></a></li></ol></li></ol></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

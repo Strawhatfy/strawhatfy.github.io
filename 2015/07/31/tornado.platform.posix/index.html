@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="写在开始之前tornado.platform.posix 模块提供了 POSIX 平台下需要用到的一些功能，内容比较少，但是由于之前的工作主要是开发 windows 应用程序，对于这部分不熟悉。虽然这个模块目前提供的功能很少，但是涉及的操作系统底层知识还是值得记录下来。 在开始阅读源码之前，先来看看 UNIX I/O 的文件描述符相关知识。 文件描述符文件描述符（File descriptor）是">
+<meta name="keywords" content="posix,fd,fcntl,FD_CLOEXEC,O_NONBLOCK,Waker,set_close_exec,_set_nonblocking">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.platform.posix 模块解析">
+<meta property="og:url" content="http://yoursite.com/2015/07/31/tornado.platform.posix/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="写在开始之前tornado.platform.posix 模块提供了 POSIX 平台下需要用到的一些功能，内容比较少，但是由于之前的工作主要是开发 windows 应用程序，对于这部分不熟悉。虽然这个模块目前提供的功能很少，但是涉及的操作系统底层知识还是值得记录下来。 在开始阅读源码之前，先来看看 UNIX I/O 的文件描述符相关知识。 文件描述符文件描述符（File descriptor）是">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:image" content="http://yoursite.com/2015/07/31/tornado.platform.posix/fd_s.png">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.342Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.platform.posix 模块解析">
+<meta name="twitter:description" content="写在开始之前tornado.platform.posix 模块提供了 POSIX 平台下需要用到的一些功能，内容比较少，但是由于之前的工作主要是开发 windows 应用程序，对于这部分不熟悉。虽然这个模块目前提供的功能很少，但是涉及的操作系统底层知识还是值得记录下来。 在开始阅读源码之前，先来看看 UNIX I/O 的文件描述符相关知识。 文件描述符文件描述符（File descriptor）是">
+<meta name="twitter:image" content="http://yoursite.com/2015/07/31/tornado.platform.posix/fd_s.png">
+  <link rel="canonical" href="http://yoursite.com/2015/07/31/tornado.platform.posix/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.platform.posix 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/07/31/tornado.platform.posix/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.platform.posix 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-07-31 20:04:01" itemprop="dateCreated datePublished" datetime="2015-07-31T20:04:01+08:00">2015-07-31</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h4 id="写在开始之前"><a href="#写在开始之前" class="headerlink" title="写在开始之前"></a>写在开始之前</h4><p>tornado.platform.posix 模块提供了 POSIX 平台下需要用到的一些功能，内容比较少，但是由于之前的工作主要是开发 windows 应用程序，对于这部分不熟悉。虽然这个模块目前提供的功能很少，但是涉及的操作系统底层知识还是值得记录下来。</p>
+<p>在开始阅读源码之前，先来看看 UNIX I/O 的文件描述符相关知识。</p>
+<h5 id="文件描述符"><a href="#文件描述符" class="headerlink" title="文件描述符"></a>文件描述符</h5><p><a href="https://zh.wikipedia.org/wiki/%E6%96%87%E4%BB%B6%E6%8F%8F%E8%BF%B0%E7%AC%A6" target="_blank" rel="noopener">文件描述符</a>（File descriptor）是计算机科学中的一个术语，是一个用于表述指向文件的引用的抽象化概念,基于文件描述符的I/O操作兼容 POSIX 标准(在 UNIX 中，一切 I/O 相关的实体都被抽象成了文件。Linux 的设计思想便是把一切设备都视作文件，文件描述符为在该系列平台上进行设备相关的编程实际上提供了一个统一的方法。)。</p>
+<p><strong>注：在非 UNIX/Linux 操作系统上，如 Windows 下的文件描述符和信号量、互斥锁等内核对象一样都记作 HANDLE。</strong></p>
+<p>文件描述符相当于一个逻辑句柄，在形式上是一个非负整数，open 、close 等 I/O 相关函数就是将文件或物理设备与该逻辑句柄相关联在一起。这个数字实际上是文件描述符表的索引值，指向内核为每一个进程所维护的该进程打开文件的记录表。在 UNIX/Linux 下有 3 个概念与进程打开的文件描述符有关：</p>
+<ul>
+<li><p><strong>文件描述符表</strong>，每个进程在 PCB（Process Control Block）中保存着一份文件描述符表，文件描述符就是这个表的索引，每个表项都有一个指向已打开文件的指针。用户程序不能直接访问内核中的文件描述符表,而只能使用文件描述符表的索引。该表位于用户区。</p>
+</li>
+<li><p><strong>系统文件表</strong>，位于内核区，为系统中所有的进程共享。对每个 open 的文件, 它都包含一个条目与之对应。每个系统文件表的条目都包含文件偏移量、文件状态标识（访问模式，读、写或者读-写）以及指向它的文件描述符表的条目计数。</p>
+</li>
+<li><p><strong>内存索引节点表</strong>，位于内核区，对系统中的每个 open 的文件，内存中索引节点表都包含一个条目。几个系统文件表条目可能对应于同一个内存索引节点表（不同进程打开同一个文件）。</p>
+</li>
+</ul>
+<img src="/2015/07/31/tornado.platform.posix/fd_s.png">
+<a id="more"></a>
+<h5 id="python-的-fcntl-模块"><a href="#python-的-fcntl-模块" class="headerlink" title="python 的 fcntl 模块"></a>python 的 fcntl 模块</h5><p>fcntl 模块为 Unix 上的 ioctl（input/output control，I/O 控制） 和 fcntl（file control，文件控制）函数提供了一个接口。它们用于文件句柄和 I/O 句柄的 “out of band” 操作，包括读取扩展属性，控制阻塞，更改终端行为等等（out of band management: 指使用分离的渠道进行设备管理。 这使系统管理员能在机器关机的时候对服务器, 网络进行监视和管理。（引用自 <a href="http://en.wikipedia.org/wiki/Out-of-band_management）" target="_blank" rel="noopener">http://en.wikipedia.org/wiki/Out-of-band_management）</a></p>
+<p>其中的 fcntl 函数签名为 fcntl.fcntl(fd, op[, arg])，共有 5 中功能：</p>
+<ol>
+<li>复制一个现有的描述符（op=F_DUPFD）；</li>
+<li>获得／设置文件描述符标记(op=F_GETFD 或 F_SETFD)；</li>
+<li>获得／设置文件状态标记(op=F_GETFL 或 F_SETFL)；</li>
+<li>获得／设置异步I/O所有权(op=F_GETOWN 或 F_SETOWN)；</li>
+<li>获得／设置记录锁(op=F_GETLK,F_SETLK 或 F_SETLKW)；</li>
+<li>其他更多函数请参考文档：<a href="https://docs.python.org/2/library/fcntl.html" target="_blank" rel="noopener">https://docs.python.org/2/library/fcntl.html</a></li>
+</ol>
+<h4 id="tornado-platform-posix-模块"><a href="#tornado-platform-posix-模块" class="headerlink" title="tornado.platform.posix 模块"></a>tornado.platform.posix 模块</h4><h5 id="set-close-exec-函数"><a href="#set-close-exec-函数" class="headerlink" title="set_close_exec 函数"></a>set_close_exec 函数</h5><p>通过 fork() 创建子进程时，子进程以写时复制（COW,Copy-On-Write）方式获得父进程的数据空间、堆和栈副本，这其中也包括文件描述符。刚刚 fork() 成功时，父子进程中相同的文件描述符指向系统文件表中的同一项（这也意味着他们共享同一文件偏移量）。</p>
+<p>一般我们会在子进程中调用 exec 一族的函数执行另一个程序，此时便会用全新的程序替换子进程的正文，数据，堆栈等，当然从父进程拷贝过来的文件描述就没法访问也就无法关闭。在 fork() 子进程时由于打开的文件可能较多，逐一去关闭有些不现实，但是为文件描述符设置 FD_CLOEXEC（close-on-exec）标识后，当子进程调用 exec 一族函数成功后便会自动（原子地）关闭该文件描述符。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">set_close_exec</span><span class="params">(fd)</span>:</span></span><br><span class="line">    flags = fcntl.fcntl(fd, fcntl.F_GETFD)</span><br><span class="line">    fcntl.fcntl(fd, fcntl.F_SETFD, flags | fcntl.FD_CLOEXEC)</span><br></pre></td></tr></table></figure>
+<h5 id="set-nonblocking-函数"><a href="#set-nonblocking-函数" class="headerlink" title="_set_nonblocking 函数"></a>_set_nonblocking 函数</h5><p>_set_nonblocking 函数将文件描述符设置为非阻塞模式。<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_set_nonblocking</span><span class="params">(fd)</span>:</span></span><br><span class="line">    flags = fcntl.fcntl(fd, fcntl.F_GETFL)</span><br><span class="line">    fcntl.fcntl(fd, fcntl.F_SETFL, flags | os.O_NONBLOCK)</span><br></pre></td></tr></table></figure></p>
+<p>这里额外提一下 O_NONBLOCK 和 O_NDELAY 的区别：<br>O_NONBLOCK 和 O_NDELAY 所产生的结果都是使 I/O 变成非阻塞模式(non-blocking)，在读取不到数据或是写入缓冲区已满会马上 return ，而不会阻塞程序，直到有数据可读或写入完成。二者差别在于设立 O_NDELAY 会使 I/O 函数返回 0 ，于是又导致另外一个问题，因为读取到文件结尾时所返回的值也是0，这样无法得知是哪中情况。因此，O_NONBLOCK 就产生出来，它在读取不到数据时会回传 -1 ，并且设置 errno 为 EAGAIN 。</p>
+<p>值得注意的是，在 GNU C 中 O_NDELAY 只是为了与 BSD 的程序兼容，实际上是使用 O_NONBLOCK 作为宏定义，而且 O_NONBLOCK 除了在 ioctl中使用，还可以在 open 时设定。</p>
+<h5 id="Waker-类"><a href="#Waker-类" class="headerlink" title="Waker 类"></a>Waker 类</h5><p>Waker 类是为了 IOLoop 进入 poll 等待时及时唤醒 poll，在 IOLoop 模块中有提到。其实现很简单，内部封装了一个管道，将写的文件描述符用于注册 signal.set_wakeup_fd。提供 wake 方法，在主动关闭 IOLoop 时可以通过写管道立即唤醒 poll。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Waker</span><span class="params">(interface.Waker)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">__init__</span><span class="params">(self)</span>:</span></span><br><span class="line">        r, w = os.pipe()</span><br><span class="line">        _set_nonblocking(r)</span><br><span class="line">        _set_nonblocking(w)</span><br><span class="line">        set_close_exec(r)</span><br><span class="line">        set_close_exec(w)</span><br><span class="line">        <span class="comment"># fdopen 返回的是 file object</span></span><br><span class="line">        self.reader = os.fdopen(r, <span class="string">"rb"</span>, <span class="number">0</span>)</span><br><span class="line">        self.writer = os.fdopen(w, <span class="string">"wb"</span>, <span class="number">0</span>)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 这个方法不命名为 reader_fileno 是为了提供 file-like object（有 fileno() 方</span></span><br><span class="line">    <span class="comment"># 法），这个在 IOLoop.split_fd 方法注释中有提到。</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">fileno</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> self.reader.fileno()</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">write_fileno</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">return</span> self.writer.fileno()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 主动关闭 IOLoop 时可以通过写管道立即唤醒 poll</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wake</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            self.writer.write(<span class="string">b"x"</span>)</span><br><span class="line">        <span class="keyword">except</span> IOError:</span><br><span class="line">            <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line">    <span class="comment"># 注册到 IOLoop handler 中，及时清空管道</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">consume</span><span class="params">(self)</span>:</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">                result = self.reader.read()</span><br><span class="line">                <span class="keyword">if</span> <span class="keyword">not</span> result:</span><br><span class="line">                    <span class="keyword">break</span></span><br><span class="line">        <span class="keyword">except</span> IOError:</span><br><span class="line">            <span class="keyword">pass</span></span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">close</span><span class="params">(self)</span>:</span></span><br><span class="line">        self.reader.close()</span><br><span class="line">        self.writer.close()</span><br></pre></td></tr></table></figure>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/posix/" rel="tag"># posix</a>
+            
+              <a href="/tags/fd/" rel="tag"># fd</a>
+            
+              <a href="/tags/fcntl/" rel="tag"># fcntl</a>
+            
+              <a href="/tags/FD-CLOEXEC/" rel="tag"># FD_CLOEXEC</a>
+            
+              <a href="/tags/O-NONBLOCK/" rel="tag"># O_NONBLOCK</a>
+            
+              <a href="/tags/Waker/" rel="tag"># Waker</a>
+            
+              <a href="/tags/set-close-exec/" rel="tag"># set_close_exec</a>
+            
+              <a href="/tags/set-nonblocking/" rel="tag"># _set_nonblocking</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/07/30/TCP-IP-Protocol/" rel="next" title="TCP/IP 知识点整理">
+                  <i class="fa fa-chevron-left"></i> TCP/IP 知识点整理
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/08/03/nat-napt/" rel="prev" title="NAT 与 NAPT">
+                  NAT 与 NAPT <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-4"><a class="nav-link" href="#写在开始之前"><span class="nav-number">1.</span> <span class="nav-text">写在开始之前</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#文件描述符"><span class="nav-number">1.1.</span> <span class="nav-text">文件描述符</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#python-的-fcntl-模块"><span class="nav-number">1.2.</span> <span class="nav-text">python 的 fcntl 模块</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#tornado-platform-posix-模块"><span class="nav-number">2.</span> <span class="nav-text">tornado.platform.posix 模块</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#set-close-exec-函数"><span class="nav-number">2.1.</span> <span class="nav-text">set_close_exec 函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#set-nonblocking-函数"><span class="nav-number">2.2.</span> <span class="nav-text">_set_nonblocking 函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#Waker-类"><span class="nav-number">2.3.</span> <span class="nav-text">Waker 类</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

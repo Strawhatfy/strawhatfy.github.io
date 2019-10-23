@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="v2ray + Nginx + TLS安装 v2ray 安装 v2ray 最新版本：  bash &amp;lt;(curl -L -s https://install.direct/go.sh)  编辑 v2ray 配置文件 /etc/v2ray/config.json，这个配置文件简单启用 2 个传输通道，分别是 port 8081 上的 websocket 和 port 8082 上的 mkcp，其">
+<meta name="keywords" content="v2ray,Nginix,TLS">
+<meta property="og:type" content="article">
+<meta property="og:title" content="v2ray + Nginx + TLS(CentOS 7)">
+<meta property="og:url" content="http://yoursite.com/2019/05/20/v2ray.tls.nginx/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="v2ray + Nginx + TLS安装 v2ray 安装 v2ray 最新版本：  bash &amp;lt;(curl -L -s https://install.direct/go.sh)  编辑 v2ray 配置文件 /etc/v2ray/config.json，这个配置文件简单启用 2 个传输通道，分别是 port 8081 上的 websocket 和 port 8082 上的 mkcp，其">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.351Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="v2ray + Nginx + TLS(CentOS 7)">
+<meta name="twitter:description" content="v2ray + Nginx + TLS安装 v2ray 安装 v2ray 最新版本：  bash &amp;lt;(curl -L -s https://install.direct/go.sh)  编辑 v2ray 配置文件 /etc/v2ray/config.json，这个配置文件简单启用 2 个传输通道，分别是 port 8081 上的 websocket 和 port 8082 上的 mkcp，其">
+  <link rel="canonical" href="http://yoursite.com/2019/05/20/v2ray.tls.nginx/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>v2ray + Nginx + TLS(CentOS 7) | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/05/20/v2ray.tls.nginx/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">v2ray + Nginx + TLS(CentOS 7)
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2019-05-20 23:11:01" itemprop="dateCreated datePublished" datetime="2019-05-20T23:11:01+08:00">2019-05-20</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/misc/" itemprop="url" rel="index"><span itemprop="name">misc</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h1 id="v2ray-Nginx-TLS"><a href="#v2ray-Nginx-TLS" class="headerlink" title="v2ray + Nginx + TLS"></a>v2ray + Nginx + TLS</h1><h2 id="安装-v2ray"><a href="#安装-v2ray" class="headerlink" title="安装 v2ray"></a>安装 v2ray</h2><ol>
+<li>安装 v2ray 最新版本：</li>
+</ol>
+<p><code>bash &lt;(curl -L -s https://install.direct/go.sh)</code></p>
+<ol start="2">
+<li>编辑 v2ray 配置文件 <code>/etc/v2ray/config.json</code>，这个配置文件简单启用 2 个传输通道，分别是 port 8081 上的 websocket 和 port 8082 上的 mkcp，其他更多配置请参考官方文档：</li>
+</ol>
+<figure class="highlight json"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line">    <span class="attr">"log"</span>: &#123;</span><br><span class="line">        <span class="attr">"access"</span>: <span class="string">"/var/log/v2ray/access.log"</span>,</span><br><span class="line">        <span class="attr">"error"</span>: <span class="string">"/var/log/v2ray/error.log"</span>,</span><br><span class="line">        <span class="attr">"loglevel"</span>: <span class="string">"warning"</span></span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">"dns"</span>: &#123;&#125;,</span><br><span class="line">    <span class="attr">"stats"</span>: &#123;&#125;,</span><br><span class="line">    <span class="attr">"inbounds"</span>: [&#123;</span><br><span class="line">            <span class="attr">"tag"</span>: <span class="string">"in-0"</span>,</span><br><span class="line">            <span class="attr">"settings"</span>: &#123;</span><br><span class="line">                <span class="attr">"clients"</span>: [&#123;</span><br><span class="line">                        <span class="attr">"id"</span>: <span class="string">"xxx"</span>,</span><br><span class="line">                        <span class="attr">"alterId"</span>: <span class="number">64</span>,</span><br><span class="line">                        <span class="attr">"level"</span>: <span class="number">1</span></span><br><span class="line">                    &#125;</span><br><span class="line">                ]</span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">"streamSettings"</span>: &#123;</span><br><span class="line">                <span class="attr">"network"</span>: <span class="string">"ws"</span>,</span><br><span class="line">                <span class="attr">"wsSettings"</span>: &#123;</span><br><span class="line">                    <span class="attr">"path"</span>: <span class="string">"/ray"</span></span><br><span class="line">                &#125;,</span><br><span class="line">                <span class="attr">"security"</span>: <span class="string">"none"</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">"listen"</span>: <span class="string">"127.0.0.1"</span>,</span><br><span class="line">            <span class="attr">"port"</span>: <span class="number">8081</span>,</span><br><span class="line">            <span class="attr">"protocol"</span>: <span class="string">"vmess"</span></span><br><span class="line">        &#125;, &#123;</span><br><span class="line">            <span class="attr">"tag"</span>: <span class="string">"in-1"</span>,</span><br><span class="line">            <span class="attr">"settings"</span>: &#123;</span><br><span class="line">                <span class="attr">"clients"</span>: [&#123;</span><br><span class="line">                        <span class="attr">"id"</span>: <span class="string">"xxx"</span>,</span><br><span class="line">                        <span class="attr">"alterId"</span>: <span class="number">64</span>,</span><br><span class="line">                        <span class="attr">"level"</span>: <span class="number">1</span></span><br><span class="line">                    &#125;</span><br><span class="line">                ]</span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">"streamSettings"</span>: &#123;</span><br><span class="line">                <span class="attr">"network"</span>: <span class="string">"kcp"</span>,</span><br><span class="line">                <span class="attr">"kcpSettings"</span>: &#123;</span><br><span class="line">                    <span class="attr">"header"</span>: &#123;</span><br><span class="line">                        <span class="attr">"type"</span>: <span class="string">"dtls"</span></span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;,</span><br><span class="line">                <span class="attr">"security"</span>: <span class="string">"none"</span></span><br><span class="line">            &#125;,</span><br><span class="line">            <span class="attr">"port"</span>: <span class="number">8082</span>,</span><br><span class="line">            <span class="attr">"protocol"</span>: <span class="string">"vmess"</span></span><br><span class="line">        &#125;</span><br><span class="line">    ],</span><br><span class="line">    <span class="attr">"outbounds"</span>: [&#123;</span><br><span class="line">            <span class="attr">"tag"</span>: <span class="string">"direct"</span>,</span><br><span class="line">            <span class="attr">"settings"</span>: &#123;&#125;,</span><br><span class="line">            <span class="attr">"protocol"</span>: <span class="string">"freedom"</span></span><br><span class="line">        &#125;, &#123;</span><br><span class="line">            <span class="attr">"tag"</span>: <span class="string">"blocked"</span>,</span><br><span class="line">            <span class="attr">"settings"</span>: &#123;&#125;,</span><br><span class="line">            <span class="attr">"protocol"</span>: <span class="string">"blackhole"</span></span><br><span class="line">        &#125;</span><br><span class="line">    ],</span><br><span class="line">    <span class="attr">"routing"</span>: &#123;</span><br><span class="line">        <span class="attr">"rules"</span>: [&#123;</span><br><span class="line">                <span class="attr">"type"</span>: <span class="string">"field"</span>,</span><br><span class="line">                <span class="attr">"ip"</span>: [</span><br><span class="line">                    <span class="string">"geoip:private"</span></span><br><span class="line">                ],</span><br><span class="line">                <span class="attr">"outboundTag"</span>: <span class="string">"blocked"</span></span><br><span class="line">            &#125;</span><br><span class="line">        ],</span><br><span class="line">        <span class="attr">"domainStrategy"</span>: <span class="string">"AsIs"</span></span><br><span class="line">    &#125;,</span><br><span class="line">    <span class="attr">"policy"</span>: &#123;&#125;,</span><br><span class="line">    <span class="attr">"reverse"</span>: &#123;&#125;,</span><br><span class="line">    <span class="attr">"transport"</span>: &#123;&#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<a id="more"></a>
+<ol start="3">
+<li>配置 v2ray service：</li>
+</ol>
+<p><code>systemctl enable v2ray &amp;&amp; systemctl start v2ray</code></p>
+<p>或者</p>
+<p><code>systemctl start v2ray --now</code></p>
+<ol start="4">
+<li>开放 v2ray mkcp 端口</li>
+</ol>
+<p><code>firewall-cmd --zone=public --permanent add-port=8082/tcp</code><br><code>firewall-cmd --zone=public --permanent add-port=8082/udp</code><br><code>firewall-cmd --reload</code></p>
+<ol start="5">
+<li>（推荐）通过 docker 运行 v2ray</li>
+</ol>
+<p><code>docker run --restart=always -d -p 8082:8082/udp -p 127.0.0.1:8081:8081 -v /path/to/v2ray/config.json:/etc/v2ray/config.json -v /path/to/v2ray:/var/log/v2ray/ v2ray/officia</code></p>
+<p>注： </p>
+<ul>
+<li><code>--restart=always</code> 设置 container 随 docker daemon 启动; </li>
+<li><code>127.0.0.1:8081</code> 作为 Nginx 的 upstream 地址，不对外暴露，由 Nginx 代理；    </li>
+<li>port <code>8082</code> 作为 UDP server 监听端口，监听 <code>0.0.0.0</code>；</li>
+<li><code>/path/to/v2ray</code> 作为 v2ray 的配置文件和 log 目录。</li>
+</ul>
+<ol start="6">
+<li>配置 log rotate</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">cat &lt;&lt; EOF &gt; /etc/logrotate.d/v2ray</span><br><span class="line">/path/to/v2ray/*.log &#123;</span><br><span class="line">    daily</span><br><span class="line">    rotate 5</span><br><span class="line">    missingok</span><br><span class="line">    notifempty</span><br><span class="line">    compress</span><br><span class="line">&#125;</span><br><span class="line">EOF</span><br></pre></td></tr></table></figure>
+<h2 id="Centos7-yum-安装-Nginx"><a href="#Centos7-yum-安装-Nginx" class="headerlink" title="Centos7 yum 安装 Nginx"></a>Centos7 yum 安装 Nginx</h2><ol>
+<li>Add nginx Repository：</li>
+</ol>
+<p><code>yum install epel-release</code></p>
+<ol start="2">
+<li>Instal nginx</li>
+</ol>
+<p><code>yum install nginx</code></p>
+<ol start="3">
+<li>Config firewall</li>
+</ol>
+<p><code>firewall-cmd --permanent --zone=public --add-service=http</code><br><code>firewall-cmd --permanent --zone=public --add-service=https</code><br><code>firewall-cmd --reload</code></p>
+<ol start="4">
+<li>Config nginx</li>
+</ol>
+<p><code>systemctl enable nginx &amp;&amp; systemctl start nginx</code> </p>
+<p>或者</p>
+<p><code>systemctl start nginx --now</code></p>
+<h2 id="生成自签名的-SSL-证书（x-509-v1）"><a href="#生成自签名的-SSL-证书（x-509-v1）" class="headerlink" title="生成自签名的 SSL 证书（x.509 v1）"></a>生成自签名的 SSL 证书（x.509 v1）</h2><ol>
+<li>生成 RSA 私钥（不加密）：</li>
+</ol>
+<p><code>openssl genrsa -out server.key 1024</code>  </p>
+<p>注：通过 <code>man genrsa</code>  查看使用手册；为避免每次 nginx reload ssl 都要手动输入口令，这里生成的私钥不要加密。</p>
+<ol start="2">
+<li>创建证书签名申请（CSR， Certificate Signning Request）:</li>
+</ol>
+<p><code>openssl req -new -key server.key -out server.csr</code></p>
+<ol start="3">
+<li>使用前面生成的私钥对 CSR 进行签名生成证书:</li>
+</ol>
+<p><code>openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt</code></p>
+<p><code>openssl x509 -noout -text -in server.crt</code>  可以查看证书内容。</p>
+<h2 id="配置-Nginx-使用自签名的-SSL-证书"><a href="#配置-Nginx-使用自签名的-SSL-证书" class="headerlink" title="配置 Nginx 使用自签名的 SSL 证书"></a>配置 Nginx 使用自签名的 SSL 证书</h2><ol>
+<li><p>配置私钥和证书文件的目录 <code>mkdir /etc/nginx/self_cert</code>，将前面生成的 <code>server.key</code> 与 <code>server.crt</code> 文件 copy <code>/etc/nginx/self_cert</code>，将前面生成的。</p>
+</li>
+<li><p>编辑 Nginx 的配置配置文件 <code>/etc/nginx/nginx.conf</code>:</p>
+</li>
+</ol>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br></pre></td><td class="code"><pre><span class="line">server &#123;</span><br><span class="line">        listen 443 default ssl;</span><br><span class="line">        ssl_certificate         /etc/nginx/self_cert/server.crt;</span><br><span class="line">        ssl_certificate_key     /etc/nginx/self_cert/server.key;</span><br><span class="line">        ssl_protocols         TLSv1 TLSv1.1 TLSv1.2;</span><br><span class="line">        ssl_ciphers           HIGH:!aNULL:!MD5;</span><br><span class="line">        server_name your_server_name_or_ip;</span><br><span class="line"></span><br><span class="line">        location /ray &#123;</span><br><span class="line">            proxy_redirect off;</span><br><span class="line">            proxy_pass http://127.0.0.1:8081;</span><br><span class="line">            proxy_http_version 1.1;</span><br><span class="line">            proxy_set_header Upgrade $http_upgrade;</span><br><span class="line">            proxy_set_header Connection &quot;upgrade&quot;;</span><br><span class="line">            proxy_set_header Host $http_host;</span><br><span class="line">            </span><br><span class="line">            proxy_set_header X-Real-IP $remote_addr;</span><br><span class="line">            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</span><br><span class="line">        &#125;</span><br><span class="line">                </span><br><span class="line">        location / &#123;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        error_page 404 /404.html;</span><br><span class="line">            location = /40x.html &#123;</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        error_page 500 502 503 504 /50x.html;</span><br><span class="line">            location = /50x.html &#123;</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<ol start="3">
+<li>开启被 SELinux 关闭的 httpd 网络连接，否则会发生 <code>permission denied</code> 导致的 Nginx 502 bad gateway 错误：</li>
+</ol>
+<p><code>setsebool -P httpd_can_network_connect 1</code></p>
+<ol start="4">
+<li>重启 Nginx： <code>nginx -s reload</code></li>
+</ol>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/v2ray/" rel="tag"># v2ray</a>
+            
+              <a href="/tags/Nginix/" rel="tag"># Nginix</a>
+            
+              <a href="/tags/TLS/" rel="tag"># TLS</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2017/12/10/MongoDB-datatypes-storage/" rel="next" title="MongoDB 数据类型及存储">
+                  <i class="fa fa-chevron-left"></i> MongoDB 数据类型及存储
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2019/05/22/kvm.disk.cache.modes/" rel="prev" title="KVM 磁盘缓存模式">
+                  KVM 磁盘缓存模式 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#v2ray-Nginx-TLS"><span class="nav-number">1.</span> <span class="nav-text">v2ray + Nginx + TLS</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#安装-v2ray"><span class="nav-number">1.1.</span> <span class="nav-text">安装 v2ray</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Centos7-yum-安装-Nginx"><span class="nav-number">1.2.</span> <span class="nav-text">Centos7 yum 安装 Nginx</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#生成自签名的-SSL-证书（x-509-v1）"><span class="nav-number">1.3.</span> <span class="nav-text">生成自签名的 SSL 证书（x.509 v1）</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#配置-Nginx-使用自签名的-SSL-证书"><span class="nav-number">1.4.</span> <span class="nav-text">配置 Nginx 使用自签名的 SSL 证书</span></a></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>

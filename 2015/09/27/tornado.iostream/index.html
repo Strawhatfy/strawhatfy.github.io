@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+
+
+
+
+
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 3.9.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=7.4.0">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=7.4.0">
+  <link rel="mask-icon" href="/images/logo.svg?v=7.4.0" color="#222">
+  <link rel="alternate" href="/atom.xml" title="书影" type="application/atom+xml">
+
+<link rel="stylesheet" href="/css/main.css?v=7.4.0">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css?v=4.7.0">
+
+
+<script id="hexo-configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Muse',
+    version: '7.4.0',
+    exturl: false,
+    sidebar: {"position":"left","display":"post","offset":12,"onmobile":false},
+    copycode: {"enable":false,"show_result":false,"style":null},
+    back2top: {"enable":true,"sidebar":false,"scrollpercent":false},
+    bookmark: {"enable":false,"color":"#222","save":"auto"},
+    fancybox: false,
+    mediumzoom: false,
+    lazyload: false,
+    pangu: false,
+    algolia: {
+      appID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    },
+    localsearch: {"enable":false,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},
+    path: '',
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    translation: {
+      copy_button: 'Copy',
+      copy_success: 'Copied',
+      copy_failure: 'Copy failed'
+    },
+    sidebarPadding: 40
+  };
+</script>
+
+  <meta name="description" content="从 Files/Sockets 到 Streamtornado.iostream 模块为 Tornado 提供了一系列读写非阻塞 files/sockets 的工具类。该模块主要包括以下 4 个主要的工具类：  BaseIOStream: 基础流读写接口，作为特定流的父类； IOStream: 针对非阻塞 sockets 的流实现； SSLIOStream: SSL-aware版本的 IOStre">
+<meta name="keywords" content="BaseIOStream,IOStream,SSLIOStream,PipeIOStream">
+<meta property="og:type" content="article">
+<meta property="og:title" content="tornado.iostream 模块解析">
+<meta property="og:url" content="http://yoursite.com/2015/09/27/tornado.iostream/index.html">
+<meta property="og:site_name" content="书影">
+<meta property="og:description" content="从 Files/Sockets 到 Streamtornado.iostream 模块为 Tornado 提供了一系列读写非阻塞 files/sockets 的工具类。该模块主要包括以下 4 个主要的工具类：  BaseIOStream: 基础流读写接口，作为特定流的父类； IOStream: 针对非阻塞 sockets 的流实现； SSLIOStream: SSL-aware版本的 IOStre">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2019-10-22T15:53:03.342Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="tornado.iostream 模块解析">
+<meta name="twitter:description" content="从 Files/Sockets 到 Streamtornado.iostream 模块为 Tornado 提供了一系列读写非阻塞 files/sockets 的工具类。该模块主要包括以下 4 个主要的工具类：  BaseIOStream: 基础流读写接口，作为特定流的父类； IOStream: 针对非阻塞 sockets 的流实现； SSLIOStream: SSL-aware版本的 IOStre">
+  <link rel="canonical" href="http://yoursite.com/2015/09/27/tornado.iostream/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true,
+    isPage: false,
+    isArchive: false
+  };
+</script>
+
+  <title>tornado.iostream 模块解析 | 书影</title>
+  
+
+
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .logo,
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">书影</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+      
+      
+      
+        
+        <li class="menu-item menu-item-home">
+      
+    
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>Home</a>
+
+  </li>
+      
+      
+      
+        
+        <li class="menu-item menu-item-archives">
+      
+    
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>Archives</a>
+
+  </li>
+  </ul>
+
+    
+
+</nav>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+      <article itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block post">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2015/09/27/tornado.iostream/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="格拉德.尼古拉斯.D.扯淡">
+      <meta itemprop="description" content="疏影横斜水清浅，暗香浮动月黄昏。">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="书影">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">tornado.iostream 模块解析
+
+          
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">Posted on</span>
+
+              
+                
+              
+
+              <time title="Created: 2015-09-27 13:25:01" itemprop="dateCreated datePublished" datetime="2015-09-27T13:25:01+08:00">2015-09-27</time>
+            </span>
+          
+            
+
+            
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">Edited on</span>
+                <time title="Modified: 2019-10-22 23:53:03" itemprop="dateModified" datetime="2019-10-22T23:53:03+08:00">2019-10-22</time>
+              </span>
+            
+          
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">In</span>
+              
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing"><a href="/categories/tornado/" itemprop="url" rel="index"><span itemprop="name">tornado</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="从-Files-Sockets-到-Stream"><a href="#从-Files-Sockets-到-Stream" class="headerlink" title="从 Files/Sockets 到 Stream"></a>从 Files/Sockets 到 Stream</h3><p><code>tornado.iostream</code> 模块为 Tornado 提供了一系列读写非阻塞 files/sockets 的工具类。该模块主要包括以下 4 个主要的工具类：</p>
+<ul>
+<li><code>BaseIOStream</code>: 基础流读写接口，作为特定流的父类；</li>
+<li><code>IOStream</code>: 针对非阻塞 sockets 的流实现；</li>
+<li><code>SSLIOStream</code>: SSL-aware版本的 <code>IOStream</code> 实现；</li>
+<li><code>PipeIOStream</code>: 针对管道(Pipe)的流实现；</li>
+</ul>
+<p><code>BaseIOStream</code> 作为基础流读写接口，实现了大部分的功能封装。后面的源代码分析中，主要就是基于该类并结合其非阻塞 socket 版本的 <code>IOStream</code> 来讨论。</p>
+<p>查看该模块的时候，我们会发现两个模块内函数 <code>_double_prefix(deque)</code> 与 <code>_merge_prefix(deque, size)</code>。这两个工具函数的实现都很简单，但是为流的读写提供通用的操作数据块(chunk)的功能：</p>
+<ul>
+<li><code>_double_prefix(deque)</code>: 该函数提供了将 buffer 的第 1 个 chunk 增大至少 1 倍的功能，该功能现在用在按条件在流的 buffer 中搜索匹配字符串时逐渐扩大搜索的数据块大小。</li>
+<li><code>_merge_prefix(deque, size)</code>: 该函数提供了将 buffer 的第 1 个 chunk 调整到指定 size 大小。这在读写流时非常有用， <code>_double_prefix(deque)</code> 就是通过该函数来调整 chunk 大小的。在将流的 write_buffer 写入 fd 时，通过该函数适当调整第 1 个 chunk 的大小，我们就可以直接操作 buffer 的第 1 个 chunk 来达到操作整个 buffer 的目的，简化了实现的难度。详细可见 <code>BaseStream._handle_writ</code> 函数实现代码。</li>
+</ul>
+<h3 id="IOStream"><a href="#IOStream" class="headerlink" title="IOStream"></a>IOStream</h3><h4 id="一些基础知识"><a href="#一些基础知识" class="headerlink" title="一些基础知识"></a>一些基础知识</h4><p>在源码的开始部分，作者写了一大段介绍 recv/send 与 read/write 函数的区别，以及各平台的操作非阻塞 I/O 时返回的错误码。recv/send 与 read/write 函数的区别大体上就是说，前者是特化的函数，提供了一些额外的选项来控制 fd 的读写操作，针对具体的 fd 实例你可以设置选项忽略 SIGPIPE 信号或者让 socket 发送带外数据等等， 后者只是提供了通用的 fd 读写操作。对于操作非阻塞 fd 返回的错误码，如下模块的静态变量对应的注释所示：<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 非阻塞操作时，缓冲区满（无法写）时或者缓冲区空（读不到数据）时返回 EAGAIN， BSD 下使用 EWOULDBLOCK， Windows下使用 WSAEWOULDBLOCK</span></span><br><span class="line">_ERRNO_WOULDBLOCK = (errno.EWOULDBLOCK, errno.EAGAIN)</span><br><span class="line"></span><br><span class="line"><span class="comment"># For windows</span></span><br><span class="line"><span class="keyword">if</span> hasattr(errno, <span class="string">"WSAEWOULDBLOCK"</span>):</span><br><span class="line">    _ERRNO_WOULDBLOCK += (errno.WSAEWOULDBLOCK,)</span><br><span class="line"></span><br><span class="line"><span class="comment"># These errnos indicate that a connection has been abruptly terminated.</span></span><br><span class="line"><span class="comment"># They should be caught and handled less noisily than other errors.</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># `ECONNRESET`: 该异常一般发生在连接的一端（A）进程较另一端（B)提前终止时。A 进程终止时会向 B 发送 FIN 后进入</span></span><br><span class="line"><span class="comment"># FIN_WAIT1 状态，B 回应 ACK，A 收到 FIN 的 ACK 进入 FIN_WAIT2 状态。B 收到 FIN 时，会向应用程序交付 EOF，</span></span><br><span class="line"><span class="comment"># 进入 CLOSE_WAIT 状态。若此时 B 进程没有正常处理 FIN（例如被阻塞）而再次向处于 FIN_WAIT2 的 A 发送数据，将会</span></span><br><span class="line"><span class="comment"># 收到 RST，引发该错误。</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># `ECONNABORTED`: 软件引起的连接中止，当服务端和客户端完成三次握手后，服务端正在等待服务进程调用 accept 时候却收到客户端</span></span><br><span class="line"><span class="comment"># 发来一个 RST 分节，引发该错误。POSIX 规定此时的 errno 值必须 ECONNABORTED。源自 Berkeley 的实现完全在内核中处理中</span></span><br><span class="line"><span class="comment"># 止的连接，服务进程将永远不知道该中止的发生。服务器进程一般可以忽略该错误，直接再次调用 accept。</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># `EPIPE`: 错误被描述为 "broken pipe" ，即 "管道破裂"，这种情况一般发生在客户进程不理会（或未及时处理）socket 错误，</span></span><br><span class="line"><span class="comment"># 而继续向 socket 写入更多数据时，内核将向客户进程发送 SIGPIPE 信号，该信号默认会使进程终止（此时该前台进程未进行 core dump）。</span></span><br><span class="line"><span class="comment">#</span></span><br><span class="line"><span class="comment"># `ETIMEDOUT`: 连接超时， 这种错误一般发生在服务器端崩溃而不响应客户端 ACK 时，客户端最终放弃尝试连接时引发该错误。</span></span><br><span class="line">_ERRNO_CONNRESET = (errno.ECONNRESET, errno.ECONNABORTED, errno.EPIPE,</span><br><span class="line">                    errno.ETIMEDOUT)</span><br><span class="line"></span><br><span class="line"><span class="comment"># For windows</span></span><br><span class="line"><span class="keyword">if</span> hasattr(errno, <span class="string">"WSAECONNRESET"</span>):</span><br><span class="line">    _ERRNO_CONNRESET += (errno.WSAECONNRESET, errno.WSAECONNABORTED, errno.WSAETIMEDOUT)</span><br><span class="line"></span><br><span class="line"><span class="comment"># More non-portable errnos:</span></span><br><span class="line"><span class="comment"># 在以非阻塞方式 connect() 时，返回的结果如果是 -1 ，并且错误号为 EINPROGRESS ，那么表示</span></span><br><span class="line"><span class="comment"># 连接还在进行并处理中(IN PROGRESS)，而不是真的发生了错误。</span></span><br><span class="line">_ERRNO_INPROGRESS = (errno.EINPROGRESS,)</span><br><span class="line"></span><br><span class="line"><span class="comment"># For windows</span></span><br><span class="line"><span class="keyword">if</span> hasattr(errno, <span class="string">"WSAEINPROGRESS"</span>):</span><br><span class="line">    _ERRNO_INPROGRESS += (errno.WSAEINPROGRESS,)</span><br></pre></td></tr></table></figure></p>
+<a id="more"></a>
+<h4 id="流的读写实现"><a href="#流的读写实现" class="headerlink" title="流的读写实现"></a>流的读写实现</h4><p><code>BaseIOStream</code> 提供了一个对非阻塞 I/O 读写的抽象，它主要提供了 5 个读写方法：</p>
+<ol>
+<li><p><code>read_until_regex</code>: 从流中读取数据直到遇上与指定正则表达式（由 regex 参数指定）匹配的字符串。在底层 fd 关闭或者读取指定的最大字节数据（由 max_bytes 参数指定）后还没有匹配上则抛出 UnsatisfiableReadError 异常。</p>
+</li>
+<li><p><code>read_until</code>: 从流中读取数据直到遇到指定的分隔符（有 delimiter 参数指定）为止。在底层的 fd 关闭或者读取指定的最大字节数据后还没有遇到分隔符则抛出 UnsatisfiableReadError异常。该方法实际上为读取 Http Header 遇到空行分隔符自动停止提供了方便。</p>
+</li>
+<li><p><code>read_bytes</code>: 从流中读取指定大小的字节数据。这实际上为根据 “Content-Length” 读取 Http Body 提供了方便。需要注意的时，如果底层 fd 关闭时也没有读取到指定大小的字节数据（由num_bytes 参数指定），callback 不会被调用。</p>
+</li>
+<li><p><code>read_until_close</code>: 从流中读取数据直到底层 fd 关闭为止。与通过无限大的 num_bytes 调用 <code>read_bytes</code> 方法类似，但是 callback 始终会被调用。</p>
+</li>
+<li><p><code>write</code>: 将指定的数据写入流的 write buffer，并持续监测底层 fd 的写事件知道将 write buffer 全部写入 fd。</p>
+</li>
+</ol>
+<p>上述方法都提供了 <code>callback</code> 参数作为异步操作完成后的回调函数，当该参数不为 None 时读取的数据将会作为 <code>callback</code> 的参数回调；为 None 时，方法将返回一个 <code>.Future</code> 实例，数据将作为 <code>.Future</code> 的 result 返回。<strong>这里稍微提一下，<code>read_bytes</code> 与 <code>read_until_close</code> 允许分多次返回读取的数据而不必等待所有数据都到了才返回，所以提供了一个额外的参数 <code>streaming_callback</code>，当该参数不为 None 时，一旦流的 read buffer 中有数据可用便立即将数据作为 <code>streaming_callback</code> 的参数回调， <code>callback</code> 的回调参数为空（b””）</strong>。</p>
+<p>对于具体类型 fd 的操作， <code>BaseIOStream</code> 提供了相关的抽象方法由具体的流实现类来实现，这些方法诸如：<code>write_to_fd</code>、<code>read_from_fd</code>、<code>close_fd</code>、<code>get_fd_error</code> 等等。</p>
+<p><code>BaseIOStream</code> 提供的读写方法基本上实现了流读取的逻辑，接下来将就各个方法的实现代码进行分析。</p>
+<h5 id="深入-read-until-regex-与-read-until-方法"><a href="#深入-read-until-regex-与-read-until-方法" class="headerlink" title="深入 read_until_regex 与 read_until 方法"></a>深入 read_until_regex 与 read_until 方法</h5><p>这两个方法比较相似，都是提供匹配特定字符串的读，<code>read_until</code> 更像是 <code>read_until_regex</code>  的特化版本，所以把二者放在一起分析。先来看看 <code>read_until_regex</code>  方法的实现：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_until_regex</span><span class="params">(self, regex, callback=None, max_bytes=None)</span>:</span></span><br><span class="line">    <span class="string">"""Asynchronously read until we have matched the given regex.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    The result includes the data that matches the regex and anything</span></span><br><span class="line"><span class="string">    that came before it.  If a callback is given, it will be run</span></span><br><span class="line"><span class="string">    with the data as an argument; if not, this method returns a</span></span><br><span class="line"><span class="string">    `.Future`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If ``max_bytes`` is not None, the connection will be closed</span></span><br><span class="line"><span class="string">    if more than ``max_bytes`` bytes have been read and the regex is</span></span><br><span class="line"><span class="string">    not satisfied.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    .. versionchanged:: 4.0</span></span><br><span class="line"><span class="string">        Added the ``max_bytes`` argument.  The ``callback`` argument is</span></span><br><span class="line"><span class="string">        now optional and a `.Future` will be returned if it is omitted.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    future = self._set_read_callback(callback)</span><br><span class="line">    <span class="comment"># 在 read_until 方法中分隔符是保存在另外一个实例字段中：</span></span><br><span class="line">    <span class="comment"># self._read_delimiter = delimiter</span></span><br><span class="line">    self._read_regex = re.compile(regex)</span><br><span class="line">    self._read_max_bytes = max_bytes</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        self._try_inline_read()</span><br><span class="line">    <span class="keyword">except</span> UnsatisfiableReadError <span class="keyword">as</span> e:</span><br><span class="line">        <span class="comment"># Handle this the same way as in _handle_events.</span></span><br><span class="line">        gen_log.info(<span class="string">"Unsatisfiable read, closing connection: %s"</span> % e)</span><br><span class="line">        self.close(exc_info=<span class="literal">True</span>)</span><br><span class="line">        <span class="keyword">return</span> future</span><br><span class="line">    <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_set_read_callback</span><span class="params">(self, callback)</span>:</span></span><br><span class="line">    <span class="keyword">assert</span> self._read_callback <span class="keyword">is</span> <span class="literal">None</span>, <span class="string">"Already reading"</span></span><br><span class="line">    <span class="keyword">assert</span> self._read_future <span class="keyword">is</span> <span class="literal">None</span>, <span class="string">"Already reading"</span></span><br><span class="line">    <span class="comment"># 按照异步设计，在 callback 指定的情况下，self._read_future = None，</span></span><br><span class="line">    <span class="comment"># 否则设置 self._read_future = TracebackFuture() 用于返回异步执</span></span><br><span class="line">    <span class="comment"># 行结果。</span></span><br><span class="line">    <span class="keyword">if</span> callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self._read_callback = stack_context.wrap(callback)</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        self._read_future = TracebackFuture()</span><br><span class="line">    <span class="keyword">return</span> self._read_future</span><br></pre></td></tr></table></figure>
+<p>在 <code>read_until</code> 方法中分隔符是保存在另外一个实例字段 <code>_read_delimiter</code> 中，以便在数据搜索匹配时使用（参见后面 <code>_find_read_pos()</code> 方法），除此之外两方法的实现是相同的。 <code>_set_read_callback</code> 方法负责设置异步读操作完成的回调， <code>_read_callback</code> 与 <code>_read_future</code> 二选一（常见后面 <code>_run_read_callback</code> 方法实现）。<code>_try_inline_read</code> 尝试先在流的 read buffer 中完成读操作以便在下一次 IOLoop 时将结果返回，否则就注册监听 fd 的读事件，代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_try_inline_read</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Attempt to complete the current read operation from buffered data.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    If the read can be completed without blocking, schedules the</span></span><br><span class="line"><span class="string">    read callback on the next IOLoop iteration; otherwise starts</span></span><br><span class="line"><span class="string">    listening for reads on the socket.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="comment"># See if we've already got the data from a previous read</span></span><br><span class="line">    <span class="comment"># 目前实际上仅在通过 read_bytes/read_until_close 方法调用时有意义，read_until_regex/read_until</span></span><br><span class="line">    <span class="comment"># 方法是没有 streaming_callback 参数的，当然也就不存在 run streaming callback。在这里调用</span></span><br><span class="line">    <span class="comment"># self._run_streaming_callback() 只是为了一般性而已。</span></span><br><span class="line">    self._run_streaming_callback()</span><br><span class="line">    <span class="comment"># pos 若不为 None，则表示数据读取完成（读取到足够大小的数据、正则表达式匹配成功或者遇到指定的分隔符）。对于</span></span><br><span class="line">    <span class="comment"># read_until_close 方法调用始终返回 None</span></span><br><span class="line">    pos = self._find_read_pos()</span><br><span class="line">    <span class="keyword">if</span> pos <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="comment"># 重置读取状态，获取数据，将读操作回调(_read_callback 或者 _read_future )加入 IOLoop，在下一次</span></span><br><span class="line">        <span class="comment"># IOLoop 时将数据返回。</span></span><br><span class="line">        self._read_from_buffer(pos)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="comment"># 检测底层 fd 是否已经关闭，如果关闭则抛出 StreamClosedError 异常</span></span><br><span class="line">    self._check_closed()</span><br><span class="line">    <span class="keyword">try</span>:</span><br><span class="line">        <span class="comment"># 因为前面尝试从 read buffer 中读取数据完成操作失败了，所以这里再尝试从底层的 fd 中读取（可读）数据来完成此次读操作。</span></span><br><span class="line">        <span class="comment"># 其内部实现也就是从 fd 中把数据读到 read buffer 再重复前面的 self._run_streaming_callback() 和</span></span><br><span class="line">        <span class="comment"># self._find_read_pos() 操作，然后把 self._find_read_pos() 的结果返回。</span></span><br><span class="line">        pos = self._read_to_buffer_loop()</span><br><span class="line">    <span class="keyword">except</span> Exception:</span><br><span class="line">        <span class="comment"># If there was an in _read_to_buffer, we called close() already,</span></span><br><span class="line">        <span class="comment"># but couldn't run the close callback because of _pending_callbacks.</span></span><br><span class="line">        <span class="comment"># Before we escape from this function, run the close callback if</span></span><br><span class="line">        <span class="comment"># applicable.</span></span><br><span class="line">        self._maybe_run_close_callback()</span><br><span class="line">        <span class="keyword">raise</span></span><br><span class="line">    <span class="keyword">if</span> pos <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        self._read_from_buffer(pos)</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="comment"># We couldn't satisfy the read inline, so either close the stream</span></span><br><span class="line">    <span class="comment"># or listen for new data.</span></span><br><span class="line">    <span class="keyword">if</span> self.closed():</span><br><span class="line">        self._maybe_run_close_callback()</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># 如果经过上述尝试都还无法完成此次读操作，则注册监听 fd 的读事件直到读操作完成或者 fd 关闭。</span></span><br><span class="line">        <span class="comment"># _handle_events 方法会异步处理 fd 的事件，对应的 READ 事件会调用 _handle_read 方法，</span></span><br><span class="line">        <span class="comment"># 而 _handle_read 方法内部会调用 _read_to_buffer_loop 方法，然后执行和上述差不多的操作。</span></span><br><span class="line">        self._add_io_state(ioloop.IOLoop.READ)</span><br></pre></td></tr></table></figure>
+<h6 id="run-streaming-callback-方法"><a href="#run-streaming-callback-方法" class="headerlink" title="_run_streaming_callback 方法"></a>_run_streaming_callback 方法</h6><p>上面代码中的 <code>_run_streaming_callback()</code> 方法顾名思义，是用于执行 <code>self._streaming_callback</code> 回调，代码很简单，在 read buffer 有数据可读时调用 streaming_callback，代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_run_streaming_callback</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> self._streaming_callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span> self._read_buffer_size:</span><br><span class="line">        bytes_to_consume = self._read_buffer_size</span><br><span class="line">        <span class="comment"># 读取不超过 buffer size 的数据</span></span><br><span class="line">        <span class="keyword">if</span> self._read_bytes <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            bytes_to_consume = min(self._read_bytes, bytes_to_consume)</span><br><span class="line">            self._read_bytes -= bytes_to_consume</span><br><span class="line">        self._run_read_callback(bytes_to_consume, <span class="literal">True</span>)</span><br></pre></td></tr></table></figure>
+<p>最终负责调用回调函数的方法是 <code>_run_read_callback</code>，该方法全权负责根据指定的参数调用 read 操作的回调。参数 <code>size</code> 指定要从 read buffer 中读取的数据大小，<code>streaming</code> 指定回调的是 <code>_streaming_callback</code> 还是最终的 <code>_read_callback</code>。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_run_read_callback</span><span class="params">(self, size, streaming)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> streaming:</span><br><span class="line">        callback = self._streaming_callback</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        callback = self._read_callback</span><br><span class="line">        self._read_callback = self._streaming_callback = <span class="literal">None</span></span><br><span class="line">    <span class="comment"># 这里其实有一个 bug ，后面这个 if 的内容逻辑上讲应该在前一个else里面（与</span></span><br><span class="line">    <span class="comment"># callback = self._read_callback 处于同一作用域）。_read_callback 与 _read_future</span></span><br><span class="line">    <span class="comment"># 是读操作完成后的回调，二者是二选一。streaming 指定为 True 的时候是不需要调用 _read_future。</span></span><br><span class="line">    <span class="comment">#</span></span><br><span class="line">    <span class="comment"># 当指定 streaming_callback(is not None) 而不指定 callback(is None) 调用 read_bytes 或者</span></span><br><span class="line">    <span class="comment"># read_until_close 方法时，后面的断言就会失败。如果用 –O 或 –oo 选项运行 Python 而忽略掉断言的</span></span><br><span class="line">    <span class="comment"># 话，callback 是不会被调用的，读取的数据将直接作为 _read_future 的结果返回。</span></span><br><span class="line">    <span class="keyword">if</span> self._read_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="keyword">assert</span> callback <span class="keyword">is</span> <span class="literal">None</span></span><br><span class="line">        future = self._read_future</span><br><span class="line">        self._read_future = <span class="literal">None</span></span><br><span class="line">        future.set_result(self._consume(size))</span><br><span class="line">    <span class="keyword">if</span> callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="keyword">assert</span> self._read_future <span class="keyword">is</span> <span class="literal">None</span></span><br><span class="line">        self._run_callback(callback, self._consume(size))</span><br><span class="line">    <span class="keyword">else</span>:</span><br><span class="line">        <span class="comment"># If we scheduled a callback, we will add the error listener</span></span><br><span class="line">        <span class="comment"># afterwards.  If we didn't, we have to do it now.</span></span><br><span class="line">        self._maybe_add_error_listener()</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_consume</span><span class="params">(self, loc)</span>:</span></span><br><span class="line">    <span class="comment"># loc=0时返回的是空而不是None,这就是前面分析到的 streaming_callback 被指定时，</span></span><br><span class="line">    <span class="comment"># read 操作完成后调用 _read_callback 或者 _read_future 的数据是空。</span></span><br><span class="line">    <span class="keyword">if</span> loc == <span class="number">0</span>:</span><br><span class="line">        <span class="keyword">return</span> <span class="string">b""</span></span><br><span class="line">    _merge_prefix(self._read_buffer, loc)</span><br><span class="line">    self._read_buffer_size -= loc</span><br><span class="line">    <span class="keyword">return</span> self._read_buffer.popleft()</span><br></pre></td></tr></table></figure>
+<p>NOTE: 正如上面代码注释中指出的，这个版本的 Tornado（4.0.1） 在 <code>_run_read_callback</code> 方法实现有 bug。后续版本已经修复了这个 bug，代码如下所示：</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_run_read_callback</span><span class="params">(self, size, streaming)</span>:</span></span><br><span class="line">   <span class="keyword">if</span> streaming:</span><br><span class="line">       callback = self._streaming_callback</span><br><span class="line">   <span class="keyword">else</span>:</span><br><span class="line">       callback = self._read_callback</span><br><span class="line">       self._read_callback = self._streaming_callback = <span class="literal">None</span></span><br><span class="line">       <span class="keyword">if</span> self._read_future <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">           <span class="keyword">assert</span> callback <span class="keyword">is</span> <span class="literal">None</span></span><br><span class="line">           future = self._read_future</span><br><span class="line">           self._read_future = <span class="literal">None</span></span><br><span class="line">           future.set_result(self._consume(size))</span><br><span class="line">   <span class="keyword">if</span> callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">       <span class="keyword">assert</span> (self._read_future <span class="keyword">is</span> <span class="literal">None</span>) <span class="keyword">or</span> streaming</span><br><span class="line">       self._run_callback(callback, self._consume(size))</span><br><span class="line">   <span class="keyword">else</span>:</span><br><span class="line">       <span class="comment"># If we scheduled a callback, we will add the error listener</span></span><br><span class="line">       <span class="comment"># afterwards.  If we didn't, we have to do it now.</span></span><br><span class="line">       <span class="comment"># 通过 self._run_callback 调用 callback 后会自动执行 _maybe_add_error_listener 方法。</span></span><br><span class="line">       <span class="comment"># 而如果调用的是 future.set_result 的话，则需要在这里执行下 _maybe_add_error_listener 方法。</span></span><br><span class="line">       self._maybe_add_error_listener()</span><br></pre></td></tr></table></figure>
+<p><code>_run_callback</code> 方法会将 <code>callback</code> 加入到 IOLoop  的回调列表中，以便在下一次 IOLoop 时执行回调。在将 <code>callback</code> 加入 IOLoop 之前， <code>_run_callback</code> 对其进行了上下文清理（注：阻止 callback 中又添加 callback 到 IOLoop 造成上下文无限增长和重入）和包装（异常时主动释放资源，回调完成后调用 _maybe_add_error_listener 方法），代码很少，但是注释很负责。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_run_callback</span><span class="params">(self, callback, *args)</span>:</span></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">wrapper</span><span class="params">()</span>:</span></span><br><span class="line">        self._pending_callbacks -= <span class="number">1</span></span><br><span class="line">        <span class="keyword">try</span>:</span><br><span class="line">            <span class="keyword">return</span> callback(*args)</span><br><span class="line">        <span class="keyword">except</span> Exception:</span><br><span class="line">            app_log.error(<span class="string">"Uncaught exception, closing connection."</span>,</span><br><span class="line">                          exc_info=<span class="literal">True</span>)</span><br><span class="line">            <span class="comment"># Close the socket on an uncaught exception from a user callback</span></span><br><span class="line">            <span class="comment"># (It would eventually get closed when the socket object is</span></span><br><span class="line">            <span class="comment"># gc'd, but we don't want to rely on gc happening before we</span></span><br><span class="line">            <span class="comment"># run out of file descriptors)</span></span><br><span class="line">            <span class="comment">#</span></span><br><span class="line">            <span class="comment"># 主动关闭底层的 fd，并将其引用释放而不用等待 GC 来释放</span></span><br><span class="line">            self.close(exc_info=<span class="literal">True</span>)</span><br><span class="line">            <span class="comment"># Re-raise the exception so that IOLoop.handle_callback_exception</span></span><br><span class="line">            <span class="comment"># can see it and log the error</span></span><br><span class="line">            <span class="keyword">raise</span></span><br><span class="line">        <span class="keyword">finally</span>:</span><br><span class="line">            self._maybe_add_error_listener()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># We schedule callbacks to be run on the next IOLoop iteration</span></span><br><span class="line">    <span class="comment"># rather than running them directly for several reasons:</span></span><br><span class="line">    <span class="comment"># * Prevents unbounded stack growth when a callback calls an</span></span><br><span class="line">    <span class="comment">#   IOLoop operation that immediately runs another callback</span></span><br><span class="line">    <span class="comment"># * Provides a predictable execution context for e.g.</span></span><br><span class="line">    <span class="comment">#   non-reentrant mutexes</span></span><br><span class="line">    <span class="comment"># * Ensures that the try/except in wrapper() is run outside</span></span><br><span class="line">    <span class="comment">#   of the application's StackContexts</span></span><br><span class="line">    <span class="keyword">with</span> stack_context.NullContext():</span><br><span class="line">        <span class="comment"># stack_context was already captured in callback, we don't need to</span></span><br><span class="line">        <span class="comment"># capture it again for IOStream's wrapper.  This is especially</span></span><br><span class="line">        <span class="comment"># important if the callback was pre-wrapped before entry to</span></span><br><span class="line">        <span class="comment"># IOStream (as in HTTPConnection._header_callback), as we could</span></span><br><span class="line">        <span class="comment"># capture and leak the wrong context here.</span></span><br><span class="line">        <span class="comment">#</span></span><br><span class="line">        <span class="comment"># 对于已经被 stack_context 捕捉了上下文快照的 callback , 不需要再重复捕捉（capture）</span></span><br><span class="line">        <span class="comment"># ，否则会造成上下文无限增长和重入（注：当 IOLoop 执行一个 callback 时，该 callback 又往</span></span><br><span class="line">        <span class="comment">#  IOLoop 添加一个 new callback 时会发生这种情况），所以这里清空上下文避免再次 capture。</span></span><br><span class="line">        <span class="comment"># （注：异步回调一旦加入到 IOLoop 就会被指定调用 stack_context.wrap 方法捕捉上下文快照，</span></span><br><span class="line">        <span class="comment"># 实现细节请参考 stack_context 模块。）</span></span><br><span class="line">        self._pending_callbacks += <span class="number">1</span></span><br><span class="line">        self.io_loop.add_callback(wrapper)</span><br></pre></td></tr></table></figure>
+<p>需要注意一下的是 <code>_maybe_add_error_listener()</code> 方法，该方法保证在最后一个 <code>callback</code> 调用结束后尝试注册检测底层 fd Error 事件。该方法和其内部调用的 <code>_add_io_state</code> 方法使用了一个优化技巧，作者在代码注释中写的很清楚。简单来说就是，由于对流的读写实现有优先级：</p>
+<ol>
+<li>优先直接从流的 buffer 和 fd buffer 中读写（fast path）；</li>
+<li>只有流和 fd 的 buffer 不可用时，才监听 fd 的读写事件，异步读写（slow path）。</li>
+</ol>
+<p><strong>注：不管采用的是哪一种读写方式，最终执行 <code>callback</code> 还是通过 <code>_run_callback</code> 方法。</strong><br><code>_add_io_state</code> 方法将对 fd 读写事件的监听与 Error 事件监听捆绑在一起，所以只有我们需要异步读写时才捕获 fd Error 事件，这样实际上也就推迟了对 fd 关闭的检测，以便流和fd 的 buffer 尽可能被读取。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_maybe_add_error_listener</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="comment"># This method is part of an optimization: to detect a connection that</span></span><br><span class="line">    <span class="comment"># is closed when we're not actively reading or writing, we must listen</span></span><br><span class="line">    <span class="comment"># for read events.  However, it is inefficient to do this when the</span></span><br><span class="line">    <span class="comment"># connection is first established because we are going to read or write</span></span><br><span class="line">    <span class="comment"># immediately anyway.  Instead, we insert checks at various times to</span></span><br><span class="line">    <span class="comment"># see if the connection is idle and add the read listener then.</span></span><br><span class="line">    <span class="keyword">if</span> self._pending_callbacks != <span class="number">0</span>:</span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="keyword">if</span> self._state <span class="keyword">is</span> <span class="literal">None</span> <span class="keyword">or</span> self._state == ioloop.IOLoop.ERROR:</span><br><span class="line">        <span class="keyword">if</span> self.closed():</span><br><span class="line">            self._maybe_run_close_callback()</span><br><span class="line">        <span class="comment"># 只要 buffer 中有数据或者 _close_callback=None 就不会主动去监测 fd 的读事件。</span></span><br><span class="line">        <span class="comment"># 这样一来，对 fd 关闭的检测就依赖于明确的对 fd 的异步读写监测，即主动调用 _add_io_state</span></span><br><span class="line">        <span class="comment"># 方法。</span></span><br><span class="line">        <span class="keyword">elif</span> (self._read_buffer_size == <span class="number">0</span> <span class="keyword">and</span></span><br><span class="line">                      self._close_callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>):</span><br><span class="line">            self._add_io_state(ioloop.IOLoop.READ)</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_add_io_state</span><span class="params">(self, state)</span>:</span></span><br><span class="line">    <span class="string">"""Adds `state` (IOLoop.&#123;READ,WRITE&#125; flags) to our event handler.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Implementation notes: Reads and writes have a fast path and a</span></span><br><span class="line"><span class="string">    slow path.  The fast path reads synchronously from socket</span></span><br><span class="line"><span class="string">    buffers, while the slow path uses `_add_io_state` to schedule</span></span><br><span class="line"><span class="string">    an IOLoop callback.  Note that in both cases, the callback is</span></span><br><span class="line"><span class="string">    run asynchronously with `_run_callback`.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    To detect closed connections, we must have called</span></span><br><span class="line"><span class="string">    `_add_io_state` at some point, but we want to delay this as</span></span><br><span class="line"><span class="string">    much as possible so we don't have to set an `IOLoop.ERROR`</span></span><br><span class="line"><span class="string">    listener that will be overwritten by the next slow-path</span></span><br><span class="line"><span class="string">    operation.  As long as there are callbacks scheduled for</span></span><br><span class="line"><span class="string">    fast-path ops, those callbacks may do more reads.</span></span><br><span class="line"><span class="string">    If a sequence of fast-path ops do not end in a slow-path op,</span></span><br><span class="line"><span class="string">    (e.g. for an @asynchronous long-poll request), we must add</span></span><br><span class="line"><span class="string">    the error handler.  This is done in `_run_callback` and `write`</span></span><br><span class="line"><span class="string">    (since the write callback is optional so we can have a</span></span><br><span class="line"><span class="string">    fast-path write with no `_run_callback`)</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="keyword">if</span> self.closed():</span><br><span class="line">        <span class="comment"># connection has been closed, so there can be no future events</span></span><br><span class="line">        <span class="keyword">return</span></span><br><span class="line">    <span class="keyword">if</span> self._state <span class="keyword">is</span> <span class="literal">None</span>:</span><br><span class="line">        self._state = ioloop.IOLoop.ERROR | state</span><br><span class="line">        <span class="keyword">with</span> stack_context.NullContext():</span><br><span class="line">            self.io_loop.add_handler(</span><br><span class="line">                self.fileno(), self._handle_events, self._state)</span><br><span class="line">    <span class="keyword">elif</span> <span class="keyword">not</span> self._state &amp; state:</span><br><span class="line">        self._state = self._state | state</span><br><span class="line">        self.io_loop.update_handler(self.fileno(), self._state)</span><br></pre></td></tr></table></figure>
+<p><code>_handle_events</code> 方法会根据 fd 的事件类型进行 <code>_handle_connect</code>、 <code>_handle_read</code>、<code>_handle_write</code> 以及 error 处理。</p>
+<h6 id="find-read-pos-方法"><a href="#find-read-pos-方法" class="headerlink" title="_find_read_pos 方法"></a>_find_read_pos 方法</h6><p><code>_find_read_pos</code> 方法会在当前流的 read buffer 中尝试完成此次读取操作，如果读取操作可以完成，就返回一个 position，后续便可以将这个 position 传递给 <code>_read_from_buffer</code> 方法以读取数据执行回调操作，完成此次读取调用。</p>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_find_read_pos</span><span class="params">(self)</span>:</span></span><br><span class="line">    <span class="string">"""Attempts to find a position in the read buffer that satisfies</span></span><br><span class="line"><span class="string">    the currently-pending read.</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    Returns a position in the buffer if the current read can be satisfied,</span></span><br><span class="line"><span class="string">    or None if it cannot.</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    <span class="comment"># self._read_bytes 保存的是 read_bytes() 方法中的 num_bytes 。</span></span><br><span class="line">    <span class="comment"># 也就是说通过 read_bytes() 读取数据时，当 buffer 中有数据时，若 &gt;= num_bytes 或者</span></span><br><span class="line">    <span class="comment"># _read_partial=True 则完成读取，返回可用的数据长度。</span></span><br><span class="line">    <span class="keyword">if</span> (self._read_bytes <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">            (self._read_buffer_size &gt;= self._read_bytes <span class="keyword">or</span></span><br><span class="line">                 (self._read_partial <span class="keyword">and</span> self._read_buffer_size &gt; <span class="number">0</span>))):</span><br><span class="line">        num_bytes = min(self._read_bytes, self._read_buffer_size)</span><br><span class="line">        <span class="keyword">return</span> num_bytes</span><br><span class="line">    <span class="keyword">elif</span> self._read_delimiter <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="comment"># Multi-byte delimiters (e.g. '\r\n') may straddle two</span></span><br><span class="line">        <span class="comment"># chunks in the read buffer, so we can't easily find them</span></span><br><span class="line">        <span class="comment"># without collapsing the buffer.  However, since protocols</span></span><br><span class="line">        <span class="comment"># using delimited reads (as opposed to reads of a known</span></span><br><span class="line">        <span class="comment"># length) tend to be "line" oriented, the delimiter is likely</span></span><br><span class="line">        <span class="comment"># to be in the first few chunks.  Merge the buffer gradually</span></span><br><span class="line">        <span class="comment"># since large merges are relatively expensive and get undone in</span></span><br><span class="line">        <span class="comment"># _consume().</span></span><br><span class="line">        <span class="keyword">if</span> self._read_buffer:</span><br><span class="line">            <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">                loc = self._read_buffer[<span class="number">0</span>].find(self._read_delimiter)</span><br><span class="line">                <span class="keyword">if</span> loc != <span class="number">-1</span>:</span><br><span class="line">                    delimiter_len = len(self._read_delimiter)</span><br><span class="line">                    <span class="comment"># 检查找到分隔符的位置，如果该位置超过了指定的 read_max_bytes</span></span><br><span class="line">                    <span class="comment"># 则抛出 UnsatisfiableReadError</span></span><br><span class="line">                    self._check_max_bytes(self._read_delimiter,</span><br><span class="line">                                          loc + delimiter_len)</span><br><span class="line">                    <span class="keyword">return</span> loc + delimiter_len</span><br><span class="line">                <span class="comment"># 如果搜索完了 buffer 中所有数据都还没找到分隔符，就跳出循环。</span></span><br><span class="line">                <span class="comment"># 注：这里基于一个假设，就是数据是符合协议要求的，那么在很少的几个 chunk 中就会找到分隔符，</span></span><br><span class="line">                <span class="comment"># 所以没有在每次循环后调用 _check_max_bytes。那么恶意发送大量数据而不发送分隔符的话，</span></span><br><span class="line">                <span class="comment"># 除了造成内存的浪费，合并 chunk 的操作也会很昂贵。</span></span><br><span class="line">                <span class="keyword">if</span> len(self._read_buffer) == <span class="number">1</span>:</span><br><span class="line">                    <span class="keyword">break</span></span><br><span class="line">                <span class="comment"># 在第一个 chunk 中没有找到分隔符的话，需要调整一下 chunk，扩大搜索的数据范围</span></span><br><span class="line">                _double_prefix(self._read_buffer)</span><br><span class="line">            self._check_max_bytes(self._read_delimiter,</span><br><span class="line">                                  len(self._read_buffer[<span class="number">0</span>]))</span><br><span class="line">    <span class="keyword">elif</span> self._read_regex <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">        <span class="keyword">if</span> self._read_buffer:</span><br><span class="line">            <span class="keyword">while</span> <span class="literal">True</span>:</span><br><span class="line">                m = self._read_regex.search(self._read_buffer[<span class="number">0</span>])</span><br><span class="line">                <span class="keyword">if</span> m <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">                    self._check_max_bytes(self._read_regex, m.end())</span><br><span class="line">                    <span class="keyword">return</span> m.end()</span><br><span class="line">                <span class="keyword">if</span> len(self._read_buffer) == <span class="number">1</span>:</span><br><span class="line">                    <span class="keyword">break</span></span><br><span class="line">                _double_prefix(self._read_buffer)</span><br><span class="line">            self._check_max_bytes(self._read_regex,</span><br><span class="line">                                  len(self._read_buffer[<span class="number">0</span>]))</span><br><span class="line">    <span class="keyword">return</span> <span class="literal">None</span></span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">_check_max_bytes</span><span class="params">(self, delimiter, size)</span>:</span></span><br><span class="line">    <span class="keyword">if</span> (self._read_max_bytes <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span> <span class="keyword">and</span></span><br><span class="line">                size &gt; self._read_max_bytes):</span><br><span class="line">        <span class="keyword">raise</span> UnsatisfiableReadError(</span><br><span class="line">            <span class="string">"delimiter %r not found within %d bytes"</span> % (</span><br><span class="line">                delimiter, self._read_max_bytes))</span><br></pre></td></tr></table></figure>
+<h6 id="read-from-buffer-和-read-to-buffer-loop-方法"><a href="#read-from-buffer-和-read-to-buffer-loop-方法" class="headerlink" title="_read_from_buffer 和 _read_to_buffer_loop 方法"></a>_read_from_buffer 和 _read_to_buffer_loop 方法</h6><p><code>_read_from_buffer</code> 方法里面重置了一下读取操作的状态，然后就直接从流的read buffer 中读取数据完成此次读取操作。</p>
+<p><code>_read_to_buffer_loop</code> 方法先从 fd 的 read buffer 中把数据读到流的 read buffer 中，然后再执行 run streaming callback 和数据搜索，返回搜索的结果。看起来就像一个需要自己先准备数据再搜索数据的 <code>_find_read_pos</code> 方法版本。<br><code>_read_to_buffer_loop</code> 方法调用 <code>_read_to_buffer</code> 方法实现把数据从 fd 的 buffer 中读到流的 buffer，其中从 fd 中读取数据的方法 <code>read_from_fd</code>  是一个抽象方法，在 <code>IOStream</code> 中有对应的 <code>socket</code>  实现，在 <code>PipeIOStream</code> 中有 <code>pipe</code> 的实现。</p>
+<h5 id="深入-read-bytes-与-read-until-close-方法"><a href="#深入-read-bytes-与-read-until-close-方法" class="headerlink" title="深入 read_bytes 与 read_until_close 方法"></a>深入 read_bytes 与 read_until_close 方法</h5><p>与 <code>read_until_regex</code> 与 <code>read_until</code> 方法一样，<code>read_bytes</code> 与 <code>read_until_close</code> 方法实现的核心也是 <code>_try_inline_read</code> 方法。但是由于这两个方法可以支持分多次将读取的数据返回而不必等到所有数据完整后才返回，所以都多出了一个 <code>streaming_callback</code> 回调参数，该参数不为 None 时，当流的 read buffer 有数据可读时便可会立即将数据作为参数回调 <code>streaming_callback</code>， <code>callback</code> 仅仅作为异步接口的协议在异步操作结束的时候调用，其回调参数为 <strong>b””</strong>。</p>
+<p>对于这两个方法，有几点需要注意一下：</p>
+<ol>
+<li><p><code>read_bytes</code> 方法的签名中有一个默认参数 <code>partial</code> , 该参数指定是否允许部分读数据，当 <code>partial=True</code> 和 <code>streaming_callback=None</code> 时只要能从流的 read buffer 中读取到数据，就立刻完成此次读操作而不管读取的数据大小是否达到了指定的 <code>num_bytes</code>（<strong>注：若 <code>streaming_callback is not None</code> ， 那么 read buffer 中的数据是轮不到 <code>callback</code> 的，实际上也就无从谈起部分读取返回</strong>）。这个方法的签名设计让人有点费解，<code>streaming_callback</code> 参数表明的是一种允许分多次读取数据，表达了必须读取足够的数据才算是完成读操作的意图；而 <code>partial</code> 又表明的是允许读取部分数据的意图，表达的是可以部分读取数据就算完成读操作的意图。那么当 <code>streaming_callback is not None</code> 和 <code>partial=True</code> 时， 后者实际是无效的参数设置；</p>
+</li>
+<li><p><code>read_bytes</code> 方法完成读操作，有一个 <code>num_bytes</code> 限制，那么就存在这么一种未完成读取的情况：当底层 fd 关闭时还没有读取到足够的数据就不算完成操作，也就不会调用 <code>callback</code>  或者为 <code>_read_future</code> 设置 result；</p>
+</li>
+<li><p><code>read_until_close</code> 方法表达的是底层 fd 关闭时完成读取操作，所以 <code>callback</code> 一定会被调用，这也就是为什么 <code>read_until_close</code> 代码中需要先检查流的关闭状态，然后再委托 <code>_try_inline_read</code> 方法。而 <code>read_bytes</code> 不需要这个检查，直接委托 <code>_try_inline_read</code> 即可。代码如下所示：</p>
+</li>
+</ol>
+<figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_bytes</span><span class="params">(self, num_bytes, callback=None, streaming_callback=None,</span></span></span><br><span class="line"><span class="function"><span class="params">               partial=False)</span>:</span></span><br><span class="line">    <span class="string">"""</span></span><br><span class="line"><span class="string">    从 stream 中读取指定数量的字节。这实际上为读取 HTTP 消息的 body 部分提供了方便。</span></span><br><span class="line"><span class="string">    这里要注意一下 ``streaming_callback`` 和 ``callback`` 参数，在提供前者的情况</span></span><br><span class="line"><span class="string">    下，一旦有数据可读取便会调用 ``streaming_callback``，后者 ``callback`` 将在读</span></span><br><span class="line"><span class="string">    取到 num_bytes 大小字节数据后调用。如果直到 socket 关闭依然没有读取到 num_bytes</span></span><br><span class="line"><span class="string">    大小字节的数据， ``callback`` 是不会被调用的，_maybe_run_close_callback()方法</span></span><br><span class="line"><span class="string">    中会负责将其重置为 None。</span></span><br><span class="line"><span class="string"></span></span><br><span class="line"><span class="string">    ``partial`` 参数指定是否只要 read buffer 中能读取到数据，即使数据大小小于 num_bytes</span></span><br><span class="line"><span class="string">     指定的字节数也完成此次异步读操作（streaming_callback=None时有效）。</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    future = self._set_read_callback(callback)</span><br><span class="line">    <span class="keyword">assert</span> isinstance(num_bytes, numbers.Integral)</span><br><span class="line">    self._read_bytes = num_bytes</span><br><span class="line">    self._read_partial = partial</span><br><span class="line">    self._streaming_callback = stack_context.wrap(streaming_callback)</span><br><span class="line">    self._try_inline_read()</span><br><span class="line">    <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">def</span> <span class="title">read_until_close</span><span class="params">(self, callback=None, streaming_callback=None)</span>:</span></span><br><span class="line">    <span class="string">"""</span></span><br><span class="line"><span class="string">    大约与读取数据字节大小无限且不允许部分读取的 read_bytes() 方法等同，差别在 ``callback``</span></span><br><span class="line"><span class="string">    必须在 fd 关闭后调用，而 read_bytes() 方法不调用。</span></span><br><span class="line"><span class="string">    """</span></span><br><span class="line">    future = self._set_read_callback(callback)</span><br><span class="line">    self._streaming_callback = stack_context.wrap(streaming_callback)</span><br><span class="line"></span><br><span class="line">    <span class="comment"># 如果 socket 已经关闭那么就直接读取 buffer 中的数据并返回。</span></span><br><span class="line">    <span class="comment"># 与 read_bytes() 不同， callback 的执行条件是 fd 关闭，所以必须要调用。</span></span><br><span class="line">    <span class="comment"># self._try_inline_read() 现在的实现不会在检测到 fd 关闭时调用 callback，</span></span><br><span class="line">    <span class="comment"># 所以这里必须要检查一下 fd 的状态，以确保 callback 被调用。</span></span><br><span class="line">    <span class="keyword">if</span> self.closed():</span><br><span class="line">        <span class="keyword">if</span> self._streaming_callback <span class="keyword">is</span> <span class="keyword">not</span> <span class="literal">None</span>:</span><br><span class="line">            self._run_read_callback(self._read_buffer_size, <span class="literal">True</span>)</span><br><span class="line">        self._run_read_callback(self._read_buffer_size, <span class="literal">False</span>)</span><br><span class="line">        <span class="keyword">return</span> future</span><br><span class="line"></span><br><span class="line">    <span class="comment"># _read_until_close 字段将在 close() 方法中使用并重置为 False，该字段决定 close 时</span></span><br><span class="line">    <span class="comment"># 是否执行 self._read_callback 回调方法。通过调用 self._run_read_callback(self._read_buffer_size, False)</span></span><br><span class="line">    <span class="comment"># 实现，具体参见 close() 方法。</span></span><br><span class="line">    self._read_until_close = <span class="literal">True</span></span><br><span class="line">    self._try_inline_read()</span><br><span class="line">    <span class="keyword">return</span> future</span><br></pre></td></tr></table></figure>
+<h5 id="深入-write-方法"><a href="#深入-write-方法" class="headerlink" title="深入 write 方法"></a>深入 write 方法</h5><p><code>write</code> 方法实现很简单，就是将数据分块（大小为 128 * 1024 字节，以避免在写入 socket 的时候再分块）写入流的 write buffer，然后监听 fd 的写事件，直到将  write buffer 中的数据全部写入 fd 时完成写操作，调用写回调或者设置 <code>_write_future</code> 的 result。同样涉及到写具体 fd 的操作方 <code>write_to_fd</code> 是在具体实现类中实现的。</p>
+
+    </div>
+
+    
+    
+    
+        
+      
+
+      <footer class="post-footer">
+          
+            
+          
+          <div class="post-tags">
+            
+              <a href="/tags/BaseIOStream/" rel="tag"># BaseIOStream</a>
+            
+              <a href="/tags/IOStream/" rel="tag"># IOStream</a>
+            
+              <a href="/tags/SSLIOStream/" rel="tag"># SSLIOStream</a>
+            
+              <a href="/tags/PipeIOStream/" rel="tag"># PipeIOStream</a>
+            
+          </div>
+        
+
+        
+
+          <div class="post-nav">
+            <div class="post-nav-next post-nav-item">
+              
+                <a href="/2015/08/05/true_complemental_ones-complement_code/" rel="next" title="关于机器数的一些知识">
+                  <i class="fa fa-chevron-left"></i> 关于机器数的一些知识
+                </a>
+              
+            </div>
+
+            <span class="post-nav-divider"></span>
+
+            <div class="post-nav-prev post-nav-item">
+              
+                <a href="/2015/09/28/two_algorithms_for_drop_probability/" rel="prev" title="计算掉落概率">
+                  计算掉落概率 <i class="fa fa-chevron-right"></i>
+                </a>
+              
+            </div>
+          </div>
+        
+      </footer>
+    
+  </div>
+  
+  
+  
+  </article>
+
+  </div>
+
+
+          </div>
+          
+
+        </div>
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+        
+        
+        
+        
+      
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          Table of Contents
+        </li>
+        <li class="sidebar-nav-overview">
+          Overview
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#从-Files-Sockets-到-Stream"><span class="nav-number">1.</span> <span class="nav-text">从 Files/Sockets 到 Stream</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#IOStream"><span class="nav-number">2.</span> <span class="nav-text">IOStream</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#一些基础知识"><span class="nav-number">2.1.</span> <span class="nav-text">一些基础知识</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#流的读写实现"><span class="nav-number">2.2.</span> <span class="nav-text">流的读写实现</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#深入-read-until-regex-与-read-until-方法"><span class="nav-number">2.2.1.</span> <span class="nav-text">深入 read_until_regex 与 read_until 方法</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#run-streaming-callback-方法"><span class="nav-number">2.2.1.1.</span> <span class="nav-text">_run_streaming_callback 方法</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#find-read-pos-方法"><span class="nav-number">2.2.1.2.</span> <span class="nav-text">_find_read_pos 方法</span></a></li><li class="nav-item nav-level-6"><a class="nav-link" href="#read-from-buffer-和-read-to-buffer-loop-方法"><span class="nav-number">2.2.1.3.</span> <span class="nav-text">_read_from_buffer 和 _read_to_buffer_loop 方法</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#深入-read-bytes-与-read-until-close-方法"><span class="nav-number">2.2.2.</span> <span class="nav-text">深入 read_bytes 与 read_until_close 方法</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#深入-write-方法"><span class="nav-number">2.2.3.</span> <span class="nav-text">深入 write 方法</span></a></li></ol></li></ol></li></ol></div>
+        
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">格拉德.尼古拉斯.D.扯淡</p>
+  <div class="site-description" itemprop="description">疏影横斜水清浅，暗香浮动月黄昏。</div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+        
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">34</span>
+          <span class="site-state-item-name">posts</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-categories">
+        
+          
+            <a href="/categories/">
+          
+        
+        <span class="site-state-item-count">10</span>
+        <span class="site-state-item-name">categories</span>
+        </a>
+      </div>
+    
+      
+      
+      <div class="site-state-item site-state-tags">
+        
+          
+            <a href="/tags/">
+          
+        
+        <span class="site-state-item-count">147</span>
+        <span class="site-state-item-name">tags</span>
+        </a>
+      </div>
+    
+  </nav>
+</div>
+  <div class="feed-link motion-element">
+    <a href="/atom.xml" rel="alternate">
+      <i class="fa fa-rss"></i>RSS
+    </a>
+  </div>
+
+
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">格拉德.尼古拉斯.D.扯淡</span>
+</div>
+  <div class="powered-by">Powered by <a href="https://hexo.io" class="theme-link" rel="noopener" target="_blank">Hexo</a> v3.9.0</div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">Theme – <a href="https://theme-next.org" class="theme-link" rel="noopener" target="_blank">NexT.Muse</a> v7.4.0</div>
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js?v=3.1.0"></script>
+  <script src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  <script src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+<script src="/js/utils.js?v=7.4.0"></script><script src="/js/motion.js?v=7.4.0"></script>
+<script src="/js/schemes/muse.js?v=7.4.0"></script>
+<script src="/js/next-boot.js?v=7.4.0"></script>
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+  
+
+</body>
+</html>
